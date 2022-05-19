@@ -27,6 +27,81 @@ class AudienceCollector:
                 credentials_fn = "credentials.csv"
             self.token, self.account_number = self.load_credentials_file(credentials_fn)
         self.db = sqlite3.connect(self.db_file_name)
+        self.cursor = self.db.cursor()
+
+    def init_db(self):
+        """
+        creates the tables in the db"""
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS collections (
+                            collection_id integer primary key autoincrement,
+                            collection_name text,
+                            input_data_json json,
+                            finished boolean,
+                            start_time varchar(50),
+                            end_time varchar(50),
+                            config json,
+                            sub_1000 boolean,
+                            comment varchar(100)
+                            );''')
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS queries (
+                            pk_queries integer primary key autoincrement,
+                            collection_id integer,
+                            query_string varchar(5000),
+                            targeting_spec json,
+                            query_time varchar(50),
+                            response json,
+                            ias varchar(25),
+                            sub_1000 boolean,
+                            comment varchar(100)
+                            );''')
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS results (
+                            pk_results integer primary key autoincrement,
+                            fk_queries integer,
+                            targeting_spec json,
+                            query_time varchar(50),
+                            response json,
+                            ias varchar(25),
+                            audience_size integer,
+                            mau integer,
+                            mau_lower integer,
+                            mau_upper integer,
+                            dau integer,
+                            estimate_ready varchar(10),
+                            genders varchar(20),
+                            geo_locations varchar(100),
+                            age_min integer,
+                            age_max integer,
+                            education_statuses varchar(40),
+                            behaviors varchar(60),
+                            iquery integer,
+                            irun integer,
+                            predictions json,
+                            prediction_mean float,
+                            prediction_std float,
+                            prediction_min float,
+                            prediction_max float,
+                            query_skipped boolean,
+                            todo_later integer,
+                            desspec varchar(70)
+                            );''')
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS errors (
+                            pk_errors integer primary key autoincrement,
+                            fk_queries integer,
+                            error_message varchar(300),
+                            query_string varchar(5000),
+                            targeting_spec json,
+                            query_time varchar(50),
+                            response json,
+                            ias varchar(25),
+                            comment varchar(100)
+                            );''')
+        
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS todo_later (
+                            pk_todo_later integer primary key autoincrement,
+                            fk_results integer,
+                            ias varchar(25),
+                            comment varchar(100)
+                            );''')
         
 
     def load_credentials_file(self,token_file_path):
@@ -47,9 +122,14 @@ class AudienceCollector:
         """
         #get the last collection_id:
         ...
+        q1 = f"""SELECT collection_id from collections 
+                ORDER BY collection_id DESC LIMIT 1"""
+        self.cursor.execute(q1)
+        collection_id = self.cursor.fetchone()[0]
         # call check_collection(collection_id)
+        self.check_collection(collection_id)
 
-    def check_collection(collection_id):
+    def check_collection(self,collection_id):
         """
         Prints information about this
         collection. Did it finish? When was the last 
@@ -57,16 +137,28 @@ class AudienceCollector:
         are done?
         """
         ...
-        query = f"""SELECT """
+        q1 = f"""SELECT * from collections where collection_id = {collection_id}"""
+        self.cursor.execute(q1)
+        collection_info = self.cursor.fetchone()
+        print(collection_info)
+        q2 = f"""SELECT * from queries where collection_id = {collection_id} ORDER BY pk_queries DESC LIMIT 1"""
+        self.cursor.execute(q2)
+        query_info = self.cursor.fetchone()
+        print(query_info)
+        q3 = f"""SELECT * from results where fk_queries = {query_info[0]} ORDER BY pk_results DESC LIMIT 1"""
+        self.cursor.execute(q3)
+        result_info = self.cursor.fetchone()
+        print(result_info)
+        q4 = f"""SELECT * from errors where fk_queries = {query_info[0]} ORDER BY pk_errors DESC LIMIT 1"""
+        self.cursor.execute(q4)
+        error_info = self.cursor.fetchone()
+        print(error_info)
+        q5 = f"""SELECT * from todo_later where fk_results = {result_info[0]} ORDER BY pk_todo_later DESC LIMIT 1"""
+        self.cursor.execute(q5)
+        todo_later_info = self.cursor.fetchone()
+        print(todo_later_info)
 
-
-    def create_db_tables(self):
-        """
-        creates the tables in the db
-        todo: copy from notebooks
-        """
-        pass
-
+        
     def restart_collection(collection_id):
         """
         Restarts a collection.
