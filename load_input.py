@@ -9,6 +9,8 @@ input = {   "name": "Soccer Interest",
 "genders": [ 1,2],
 "ages_ranges": [
     {"min":18, "max":24},
+    {"min":25, "max":34},
+    {"min":35, "max":54},
     {"min":55}
 ],
 "scholarities":[{

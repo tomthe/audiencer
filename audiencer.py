@@ -6,6 +6,13 @@ import os
 import numpy as np
 import statistics as st
 from datetime import datetime
+import requests
+import json
+import time
+import constants
+import logging
+
+
 
 
 class AudienceCollector:
@@ -131,6 +138,17 @@ class AudienceCollector:
 
                         #print("---", ias, audience,"pred:",prediction,"|||")
 
+    def get_and_save_results(self,ias,prediction,sub1000=True):
+        """
+        Gets the results for a given ias-tuple.
+        Saves the results to the db.
+        """
+        # create targeting-spec:
+        targeting_spec = self.create_targeting_spec(ias)
+        audience = self.get_results(ias,sub1000=sub1000)
+        # save results:
+        self.save_results(ias,audience,prediction)
+        return audience
 
     def get_all_predictions(ias):
         # 1. generate all variations of ias that can form a prediction
@@ -174,3 +192,78 @@ class AudienceCollector:
             #predictions.append(results.item(tuple(iasp1))*results.item(tuple(iasp2))/results.item(tuple(iasp3)))
 
         return predictions
+
+
+    def handle_send_request_error(self, response, url, params, tryNumber):
+        try:
+            error_json = json.loads(response.text)
+            if error_json["error"]["code"] == constants.API_UNKOWN_ERROR_CODE_1 or error_json["error"][
+                "code"] == constants.API_UNKOWN_ERROR_CODE_2:
+                logging.error(f"{error_json}, {params}, {url}")
+                time.sleep(constants.INITIAL_TRY_SLEEP_TIME * tryNumber)
+                return self.send_request(url, params, tryNumber)
+            # elif error_json["error"]["code"] == constants.INVALID_PARAMETER_ERROR and "error_subcode" in error_json[
+            #     "error"] and error_json["error"]["error_subcode"] == constants.FEW_USERS_IN_CUSTOM_LOCATIONS_SUBCODE_ERROR:
+            #     return get_fake_response()
+            # elif "message" in error_json["error"] and "Invalid zip code" in error_json["error"][
+            #     "message"] and constants.INGORE_INVALID_ZIP_CODES:
+            #     print_warning("Invalid Zip Code:" + str(params[constants.TARGETING_SPEC_FIELD]))
+            #     return get_fake_response()
+            else:
+                logging.error("Could not handle error.")
+                logging.error("Error Code:" + str(error_json["error"]["code"]))
+                if "message" in error_json["error"]:
+                    logging.error("Error Message:" + str(error_json["error"]["message"]))
+                if "error_subcode" in error_json["error"]:
+                    logging.error("Error Subcode:" + str(error_json["error"]["error_subcode"]))
+                raise Exception(str(error_json["error"]))
+        except Exception as e:
+            logging.error(e)
+            raise Exception(str(response.text))
+        
+    def send_request(self, url, params, tryNumber=0):
+        tryNumber += 1
+        if tryNumber >= 20: # self.MAX_NUMBER_TRY:
+            print("Maximum Number of Tries reached. Failing.")
+            raise Exception("Maximum try reached.")
+        try:
+            response = requests.get(url, params=params, timeout=constants.REQUESTS_TIMEOUT)
+        except Exception as error:
+            raise Exception(error.message)
+        if response.status_code == 200:
+            return response
+        else:
+            return self.handle_send_request_error(response, url, params, tryNumber)
+
+
+    def call_request_fb(self, ias):
+        payload = {
+            'optimization_goal': "AD_RECALL_LIFT",
+            'targeting_spec': json.dumps(create_targeting_spec_from_ias(ias)),
+            'access_token': self.token,
+        }
+        payload_str = str(payload)
+        print("\tSending in request: %s" % (payload_str))
+        url = constants.REACHESTIMATE_URL.format(self.account)
+        response = self.send_request(url, payload)
+
+        return response.content
+
+    def create_targeting_spec_from_ias(self,ias):
+        return self.create_targeting_spec_from_list_of_ias([ias])
+
+    def create_targeting_spec_from_list_of_ias(self,iaslist):
+        newspec = {}# todo: add parts that do not change
+        
+        for ias in iaslist:
+            for ia,cat in zip(ias,constants.categories):
+                if ia!=0:
+                    if cat not in newspec:
+                        newspec[cat]=input[cat][ia-1]
+                    else:
+                        newspec[cat]+=input[cat][ia-1]
+                else:
+                    pass
+        return newspec
+
+
