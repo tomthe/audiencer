@@ -173,21 +173,94 @@ class AudienceCollector:
         '''
         ...
 
+
+    def get_all_predictions(self,ias):
+        # 1. generate all variations of ias that can form a prediction
+        # 2. get the prediction for each variation
+        # 3. profit?!
+
+        # what are iasp1 : differs in one category
+        # then iasp2: is the same as ias in the cat that differs in iasp1
+        # ... differs in some other category
+        # then iasp3: is the same as ias in the cat that differs in iasp2 
+        # and the same in iasp1
+        ias = list(ias)
+        iasplist = []
+        for i in range(len(ias)):
+            if ias[i]!=0:
+                for j in range(0,ias[i]): # or only up to ias[i]-1?
+                    iasp1 = ias[:]
+                    iasp1[i] = j
+                    for k in range(len(ias)):
+                        if k!=i:
+                            if ias[k]!=0:
+                                for l in range(0,ias[k]):
+                                    iasp2 = ias[:]
+                                    iasp2[k] = l
+                                    iasp3 = ias[:]
+                                    iasp3[k] = l
+                                    iasp3[i] = j
+                                    iasplist.append((iasp1,iasp2,iasp3))
+        # todo: We should somehow remove (or avoid) the duplicates, 
+        # because iasp1 and iasp2 are interchangeable.
+        # return iasplist
+        #print("iasplist: ",iasplist)
+        predictions = []
+        for iasp1,iasp2,iasp3 in iasplist:
+            #print(iasp1,iasp2,iasp3)
+            #print(results[tuple(iasp1)],results[tuple(iasp2)],results[tuple(iasp3)])
+            #print(results[tuple(iasp1)]*results[tuple(iasp2)]/results[tuple(iasp3)])
+            predictions.append(self.results[tuple(iasp1)]*self.results[tuple(iasp2)]/self.results[tuple(iasp3)])
+            #predictions.append(results.item(tuple(iasp1))*results.item(tuple(iasp2))/results.item(tuple(iasp3)))
+
+        return predictions
+
+    def collect_one_combination(self,ias,collection_config):
+        
+        # 1. make prediction for ias    
+        prediction = self.get_all_predictions(ias)
+        if collection_config.get("verbose",False)==True:
+            print(ias, "prediction: ",prediction)
+        if len(prediction)>0:
+            self.predictions_median[ias] = st.median(prediction)
+            self.predictions_stdev[ias] = st.stdev(prediction)
+            self.predictions_len[ias] = len(prediction)
+        else:
+            self.predictions_median[ias] = -2
+            self.predictions_stdev[ias] = -2
+            self.predictions_len[ias] = len(prediction)
+
+        # 2. sub-1000 handling: skip or  make extra-requests?
+        if self.predictions_median[ias] < 1050:
+            if collection_config.get("skip_sub_1000",True)==True:
+                # save prediction but skip the request
+                self.safe_result(ias,prediction,query_skipped=True,collection_config=collection_config)
+                # todo: save to table
+                audience = self.predictions_median[ias]
+                #continue
+            else: # don't skip, but make extra requests:
+                # ...
+                audience = self.get_and_save_results(ias,prediction,sub1000=True)
+        else:
+            # make a normal request:
+            audience = self.get_and_save_results(ias,prediction)
+        self.results_mau[ias] = audience
+
+
+        #print("---", ias, audience,"pred:",prediction,"|||")
+
+
+
     def start_collection(self, input_data_json, collection_config={}, collection_id=None, skip_n=0):
         '''
         
         '''
-        ...
         # 
         if collection_id == None:
             # fail?
-            ...
-        
-        # extract lists from targeting-def-json
-        
-
+            collection_id=-1
         # prepare main loop:
-        categories = ["geo_locations","genders","ages_ranges","scholarities"]
+        categories = ["geo_locations","behaviors","genders","ages_ranges","scholarities","interests"]
         catlens = [len(input_data_json[cat])+1 for cat in categories]
 
         # Numpy-arrays for fast access to results (needed for predictions)
@@ -196,40 +269,56 @@ class AudienceCollector:
         predictions_stdev = np.full((catlens),-1)
         
 
-                
-        # start main loop:
-        for i0 in range(catlens[0]):
-            for i1 in range(catlens[1]):
-                for i2 in range(catlens[2]):
+        if collection_config.get("less_combinations",False)==True:
+            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]))
+            print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]))
+            # start main loop:
+            for i0 in range(catlens[0]):
+                for i1 in range(catlens[1]):
+                    i2=i3=i4=i5=0
+                    for i2 in range(catlens[2]):
+                        ias = (i0,i1,i2,i3,i4,i5)
+                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                    i2=i3=i4=i5=0
                     for i3 in range(catlens[3]):
-                        ...
-                         # 1. make prediction for ias    
-                        ias = (i0,i1,i2,i3)
-                        prediction = self.get_all_predictions(ias)
-                        if len(prediction)>0:
-                            predictions_median[ias] = st.median(prediction)
-                            predictions_stdev[ias] = st.stdev(prediction)
-                        else:
-                            predictions_median[ias] = -2
-                            predictions_stdev[ias] = -2
-
-                         # 2. sub-1000 handling: skip or  make extra-requests?
-                        if predictions_median[ias] < 1050:
-                            if collection_config.get("skip_sub_1000",True)==True:
-                                # save prediction but skip the request
-                                # todo: save to table
-                                audience = predictions_median[ias]
-                                #continue
-                            else: # don't skip, but make extra requests:
-                                # ...
-                                audience = self.get_and_save_results(ias,prediction,sub1000=True)
-                        else:
-                            # make a normal request:
-                            audience = self.get_and_save_results(ias,prediction)
-                        results_mau[ias] = audience
-
-                        #print("---", ias, audience,"pred:",prediction,"|||")
-
+                        ias = (i0,i1,i2,i3,i4,i5)
+                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                    i2=i3=i4=i5=0
+                    for i4 in range(catlens[4]):
+                        ias = (i0,i1,i2,i3,i4,i5)
+                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                    i2=i3=i4=i5=0
+                    for i5 in range(catlens[5]):
+                        ias = (i0,i1,i2,i3,i4,i5)
+                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+        else:
+            print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]))
+            print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]))
+            # start main loop:
+            for i0 in range(catlens[0]):
+                for i1 in range(catlens[1]):
+                    for i2 in range(catlens[2]):
+                        for i3 in range(catlens[3]):
+                            for i4 in range(catlens[4]):
+                                for i5 in range(catlens[5]):
+                                    ias = (i0,i1,i2,i3,i4,i5)
+                                    self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+    def get_spec(self, ias):
+        '''
+            create targeting spec from ias.
+            problem/todo: 
+        '''
+        newspec = {}
+        # if ias[0] !=0:
+        #     newspec["geo_locations"] = input["geo_locations"][ias[0]]
+        # if ias[1] !=0:
+        #     newspec["genders"] = input["genders"][ias[1]]
+        for ia,cat in zip(ias,self.categories):
+            if ia!=0:
+                newspec[cat]=input[cat][ia-1]
+            else:
+                pass
+        return newspec
     def get_and_save_results(self,ias,prediction,sub1000=True):
         """
         Gets the results for a given ias-tuple.

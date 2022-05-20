@@ -1,4 +1,8 @@
 #%%
+
+
+import numpy as np
+import statistics as st
 # 
 input = {   "name": "Soccer Interest",
      "geo_locations": [
@@ -18,6 +22,22 @@ input = {   "name": "Soccer Interest",
     "or" : [3,7,8,9,11]
   }
 ],
+	"scholarities": [{
+			"name": "Graduated",
+			"or": [3, 7, 8, 9, 11]
+		},
+		{
+			"name": "Unspecified",
+			"or": [12]
+		},
+		{
+			"name": "No Degree",
+			"or": [1, 13]
+		}, {
+			"name": "High School",
+			"or": [2, 4, 5, 6, 10]
+		}
+	],
 "languages":[{
     "name" : "Arabic",
     "values" : [28]
@@ -301,8 +321,6 @@ for i3 in range(catlens[3]):
 
 
 #%%
-import numpy as np
-import statistics as st
 
 categories = ["geo_locations","genders","ages_ranges","scholarities"]
 catlens = [len(input[cat])+1 for cat in categories]
