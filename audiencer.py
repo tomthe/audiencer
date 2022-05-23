@@ -59,7 +59,7 @@ class AudienceCollector:
                             collection_id integer,
                             query_string varchar(5000),
                             targeting_spec json,
-                            query_time varchar(50),
+                            qtime varchar(50),
                             response json,
                             status_code varchar(4),
                             tryNumber integer,
@@ -71,7 +71,7 @@ class AudienceCollector:
                             pk_results integer primary key autoincrement,
                             fk_queries integer,
                             targeting_spec json,
-                            query_time varchar(50),
+                            qtime varchar(50),
                             response json,
                             ias varchar(25),
                             audience_size integer,
@@ -103,7 +103,7 @@ class AudienceCollector:
                             error_message varchar(300),
                             query_string varchar(5000),
                             targeting_spec json,
-                            query_time varchar(50),
+                            qtime varchar(50),
                             response json,
                             ias varchar(25),
                             comment varchar(100)
@@ -484,7 +484,7 @@ class AudienceCollector:
     #     except Exception as e:
     #         print("\n",tryNumber,ias, "Error while saving the query! ", str(e),str(datetime.now()),)
     #         print()
-    #         self.cursor.execute('INSERT INTO errors (error_message, ias,                query_time,        response) VALUES (?,?,?,?)',
+    #         self.cursor.execute('INSERT INTO errors (error_message, ias,                qtime,        response) VALUES (?,?,?,?)',
     #                                                   (str(e), str(ias),    datetime.now().timestamp()))
     #         #print(cursor.lastrowid)
     #     self.connection.commit()
@@ -498,13 +498,13 @@ class AudienceCollector:
         except Exception as e:
             print("\n",tryNumber,ias, "Error while saving the query! ", str(e),str(datetime.now()),)
             print()
-            self.cursor.execute('INSERT INTO errors (error_message, ias,                query_time,        response) VALUES (?,?,?,?)',
+            self.cursor.execute('INSERT INTO errors (error_message, ias,                qtime,        response) VALUES (?,?,?,?)',
                                                       (str(e), str(ias),    datetime.now().timestamp()))
             #print(cursor.lastrowid)
         self.connection.commit()
 
 
-    def save_query(self, ias, responsecontent="", collection_id=0, query_string="",targetspec="",geolocation=None,desspec="|||||"):
+    def save_result(self, ias, responsecontent="", collection_id=0, query_string="",targetspec="",geolocation=None,desspec="|||||"):
         """
         save query to a local SQLite database.
         Extract some information (mau, ...) if possible
@@ -521,9 +521,8 @@ class AudienceCollector:
                     mau = int((float(mau_lower)+float(mau_upper))/2)
                     dau = str(jsn["data"][0]['estimate_dau'])
                     estimate_ready = str(jsn["data"][0]['estimate_ready'])
-                    audience_size = mau 
                 except Exception as e:
-                    print(iquery,"savequeryerror1",str(e),responsecontent,desspec,str(datetime.now()))
+                    print(ias,"savequeryerror1",str(e),responsecontent,str(datetime.now()))
                     returnerror=1
                     mau = mau_lower=mau_upper="-2"
                     dau = "-2"
@@ -569,13 +568,13 @@ class AudienceCollector:
                 print(iquery,"saveerror2 - age_max", str(e))
 
             #print(iquery,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,iquery,irun)
-            self.cursor.execute('INSERT INTO queries (query_string,   targeting_spec,   query_time,      response,mau,mau_lower,mau_upper,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,iquery,irun,desspec) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            self.cursor.execute('INSERT INTO queries (query_string,   targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,iquery,irun,desspec) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
             (str(query_string),  json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,iquery,irun,desspec))
         except Exception as e:
             returnerror=2
             print("\n",iquery, "Error while saving the query! ", str(e),str(datetime.now()))
             print()
-            self.cursor.execute('INSERT INTO queries (query_string, targeting_spec,                query_time,        response) VALUES (?,?,?,?)',
+            self.cursor.execute('INSERT INTO queries (query_string, targeting_spec,                qtime,        response) VALUES (?,?,?,?)',
                                                 (str(query_string), json.dumps(targetspec),    datetime.now().timestamp(),responsecontent))
             #print(cursor.lastrowid)
         self.connection.commit()
