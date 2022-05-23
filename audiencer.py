@@ -247,7 +247,7 @@ class AudienceCollector:
         if self.predictions_median[ias] < 1050:
             if collection_config.get("skip_sub_1000",True)==True:
                 # save prediction but skip the request
-                self.safe_result(ias,prediction,query_skipped=True,collection_config=collection_config)
+                self.extract_and_save_result(ias,prediction,query_skipped=True,collection_config=collection_config)
                 # todo: save to table
                 audience = self.predictions_median[ias]
                 #continue
@@ -322,11 +322,9 @@ class AudienceCollector:
         Gets the results for a given ias-tuple.
         Saves the results to the db.
         """
-        # create targeting-spec:
-        targeting_spec = self.create_targeting_spec(ias)
         audience = self.get_results(ias,sub1000=sub1000)
         # save results:
-        self.save_results(ias,audience,prediction)
+        self.extract_and_save_results(ias,audience,prediction)
         return audience
 
     def get_all_predictions(self,ias):
@@ -374,6 +372,7 @@ class AudienceCollector:
 
 
     def handle_send_request_error(self, response, url, params, ias, tryNumber):
+        """called only by self.send_request"""
         try:
             error_json = json.loads(response.text)
             if error_json["error"]["code"] == constants.API_UNKOWN_ERROR_CODE_1 or error_json["error"][
@@ -400,34 +399,42 @@ class AudienceCollector:
             logging.error(e)
             raise Exception(str(response.text))
         
-    def send_request(self, url, params,ias, tryNumber=0):
+    def send_request(self, url, params,ias,targeting_spec, prediction, tryNumber=0):
         """called only by self.call_request_fb"""
         tryNumber += 1
+        time.sleep(10)
+        # todo: more intelligent sleep-management
         if tryNumber >= 20: # self.MAX_NUMBER_TRY:
             print("Maximum Number of Tries reached. Failing.")
             raise Exception("Maximum try reached.")
         try:
             response = requests.get(url, params=params, timeout=constants.REQUESTS_TIMEOUT)
             # save request:
-            self.save_request(url, params, response, ias, tryNumber)
+            self.save_request(url, params, response, ias, targeting_spec, tryNumber)
+            if response.status_code == 200:
+                self.extract_and_save_result(self, ias, targeting_spec,responsecontent=response.content, prediction=prediction,collection_id=self.collection_id,targetspec=targeting_spec)
+            elif response.status_code == 999 :
+                print("999")
+                time.sleep(30)
         except Exception as error:
             raise Exception(error.message)
         if response.status_code == 200:
             return response
         else:
-            return self.handle_send_request_error(response, url, params, ias, tryNumber)
+            return self.handle_send_request_error(response, url, params, ias, prediction, tryNumber)
 
 
-    def call_request_fb(self, ias):
+    def call_request_fb(self, ias, prediction):
+        targeting_spec = self.create_targeting_spec_from_ias(ias)
         payload = {
             'optimization_goal': "AD_RECALL_LIFT",
-            'targeting_spec': json.dumps(self.create_targeting_spec_from_ias(ias)),
+            'targeting_spec': json.dumps(targeting_spec),
             'access_token': self.token,
         }
         payload_str = str(payload)
         #print("\tSending in request: %s" % (payload_str))
         url = constants.REACHESTIMATE_URL.format(self.account)
-        response = self.send_request(url, payload)
+        response = self.send_request(url, payload,ias,targeting_spec,prediction)
 
         return response.content
 
@@ -490,9 +497,9 @@ class AudienceCollector:
     #     self.connection.commit()
     #     self.results[tuple(ias)] = result
 
-    def save_request(self, url, params, response, ias, tryNumber):
-        query = f"""INSERT INTO queries (url, qtime, params, response,collection_id,status_code,ias,tryNumber)
-         VALUES ('{url}', '{str(datetime.now())}', '{params}', '{response.content}', '{self.collection_id}', '{response.status_code}', '{ias}', '{tryNumber}')"""
+    def save_request(self, url, params, response, ias,targeting_spec, tryNumber):
+        query = f"""INSERT INTO queries (url, qtime, targeting_spec, response,collection_id,status_code,ias,tryNumber)
+         VALUES ('{url}', '{str(datetime.now())}', '{targeting_spec}', '{response.content}', '{self.collection_id}', '{response.status_code}', '{ias}', '{tryNumber}')"""
         try:
             self.cursor.execute(query)
         except Exception as e:
@@ -504,13 +511,28 @@ class AudienceCollector:
         self.connection.commit()
 
 
-    def save_result(self, ias, responsecontent="", collection_id=0, query_string="",targetspec="",geolocation=None,desspec="|||||"):
+    def extract_and_save_result(self, ias, targeting_spec,responsecontent="", prediction=[],collection_id=0, query_string="",targetspec="",geolocation=None,desspec="|||||"):
         """
         save query to a local SQLite database.
         Extract some information (mau, ...) if possible
         """
         mau=-5
         returnerror=0
+                    
+        # try:
+        #     jsn = json.loads(responsecontent)
+        # except Exception as e:
+        #     logging.error(e)
+        #     return
+
+        # for cat in self.categories:
+        #     try:
+        #         cat_value = jsn["data"][cat]
+        #     except Exception as e:
+        #         logging.error(e)
+        #         return
+
+
         try:
             if responsecontent!="skipped":
                 try:
@@ -540,39 +562,53 @@ class AudienceCollector:
                 genders = str(json.dumps(targetspec['genders']))
             except Exception as e:
                 genders = "no"
-                print(iquery,"saveerror2 - genders", str(e))
+                print(ias,"saveerror2 - genders", str(e))
             try:
                 geo_locations =  json.dumps(targetspec["geo_locations"])
             except Exception as e:
                 geo_locations =  "notSpecified"
-                print(iquery,"saveerror2 - geo_locations", str(e))
+                print(ias,"saveerror2 - geo_locations", str(e))
             try:
                 education_statuses = json.dumps(targetspec["education_statuses"])
             except Exception as e:
                 education_statuses = "notSpecified"
-                #print(iquery,"saveerror2 - education-statuesegenders", str(e))
+                #print(ias,"saveerror2 - education-statuesegenders", str(e))
             try:
                 behaviors = json.dumps(targetspec["flexible_spec"])
             except Exception as e:
                 behaviors = "notSpecified"
-                print(iquery,"saveerror2 - behabiors", str(e))
+                print(ias,"saveerror2 - behabiors", str(e))
             try:
                 age_min = str(json.dumps(targetspec['age_min']))
             except Exception as e:
                 age_min = "0"
-                print(iquery,"saveerror2 - age_min", str(e))
+                print(ias,"saveerror2 - age_min", str(e))
             try:
                 age_max = targetspec['age_max']
             except Exception as e:
                 age_max = "100"
-                print(iquery,"saveerror2 - age_max", str(e))
+                print(ias,"saveerror2 - age_max", str(e))
+            try:
+                prediction_mean = str(st.mean(prediction))
+                prediction_std= str(st.stdev(prediction))
+                prediction_min= str(min(prediction))
+                prediction_max= str(max(prediction))
+            except Exception as e:
+                prediction_mean = "-2"
+                prediction_std= "-2"
+                prediction_min= "-2"
+                prediction_max= "-2"
 
-            #print(iquery,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,iquery,irun)
-            self.cursor.execute('INSERT INTO queries (query_string,   targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,iquery,irun,desspec) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-            (str(query_string),  json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,iquery,irun,desspec))
+            #print(ias,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,irun)
+            self.cursor.execute('''INSERT INTO queries (query_string,   targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
+            dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
+            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?)''',
+            (str(query_string),  json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
+            dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
+            prediction,prediction_mean,prediction_std,prediction_min, prediction_max))
         except Exception as e:
             returnerror=2
-            print("\n",iquery, "Error while saving the query! ", str(e),str(datetime.now()))
+            print("\n",ias, "Error while saving the query! ", str(e),str(datetime.now()))
             print()
             self.cursor.execute('INSERT INTO queries (query_string, targeting_spec,                qtime,        response) VALUES (?,?,?,?)',
                                                 (str(query_string), json.dumps(targetspec),    datetime.now().timestamp(),responsecontent))
