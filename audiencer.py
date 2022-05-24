@@ -327,7 +327,7 @@ class AudienceCollector:
                             for i4 in range(catlens[4]):
                                 for i5 in range(catlens[5]):
                                     ias = (i0,i1,i2,i3,i4,i5)
-                                    self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                                    self.collect_one_combination(ias, collection_config)
     
 
     def get_and_save_results(self,ias,prediction,sub1000=True):
