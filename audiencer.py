@@ -19,6 +19,7 @@ class AudienceCollector:
 
     def __init__(self, db_file_name, fn_input_data=None, token=None,account_number=None,credentials_fn=None,api_version="13.0"):
         self.db_file_name = db_file_name
+        self.collection_id = -1
         if token != None:
             self.token = token
             self.account_number = account_number
@@ -30,10 +31,18 @@ class AudienceCollector:
         self.cursor = self.db.cursor()
         self.init_db()
         self.read_input_data_json(fn_input_data)
-        self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities","interests"]
+        self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities", "interests"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
-        
+
+        catlens = [len(self.input_data_json[cat])+1 for cat in self.categories]
+
+        # Numpy-arrays for fast access to results (needed for predictions)
+        self.results_mau = {} #np.ones((catlens))
+        self.predictions_median = {} #np.full((catlens),-1)
+        self.predictions_stdev = {} #np.full((catlens),-1)
+        self.predictions_len = {} #np.full((catlens),-1)
+
     def read_input_data_json(self,fn_input_data):
         with open(fn_input_data,"r") as inputjson:
             self.input_data_json =json.load(inputjson)
@@ -45,7 +54,7 @@ class AudienceCollector:
         creates the tables in the db"""
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS collections (
                             collection_id integer primary key autoincrement,
-                            collection_name text,
+                            collection_name varchar(100),
                             input_data_json json,
                             finished boolean,
                             start_time varchar(50),
@@ -57,6 +66,7 @@ class AudienceCollector:
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS queries (
                             pk_queries integer primary key autoincrement,
                             collection_id integer,
+                            url varchar(1000),
                             query_string varchar(5000),
                             targeting_spec json,
                             qtime varchar(50),
@@ -72,6 +82,7 @@ class AudienceCollector:
                             fk_queries integer,
                             targeting_spec json,
                             qtime varchar(50),
+                            query_string varchar(5000),
                             response json,
                             ias varchar(25),
                             audience_size integer,
@@ -180,56 +191,61 @@ class AudienceCollector:
         ...
         query = f"""UPDATE """
 
-    def start_new_collection(self,targeting_def_json, options_json):
+    def start_new_collection(self,input_data_json, options_json, collection_name="default_collection", comment=""):
         '''save collection-metadata to collections-column
         then start collection with starting-point=0
         '''
-        ...
+        print("start_new_collection",(collection_name, input_data_json, False, datetime.now(), "", options_json,  comment))
+        query = f"""INSERT INTO collections (collection_name, input_data_json, finished, start_time, end_time, config, comment)
+                    VALUES (?,?,?,?,?, ?,?)"""
+        self.cursor.execute(query, (collection_name, str(input_data_json), str(False), str(datetime.now()), "", str(options_json),  comment))
+        self.collection_id = self.cursor.lastrowid
+        self.start_collection(input_data_json, options_json, collection_id = self.collection_id,)
 
 
-    def get_all_predictions(self,ias):
-        # 1. generate all variations of ias that can form a prediction
-        # 2. get the prediction for each variation
-        # 3. profit?!
+    # def get_all_predictions(self,ias):
+    #     # 1. generate all variations of ias that can form a prediction
+    #     # 2. get the prediction for each variation
+    #     # 3. profit?!
 
-        # what are iasp1 : differs in one category
-        # then iasp2: is the same as ias in the cat that differs in iasp1
-        # ... differs in some other category
-        # then iasp3: is the same as ias in the cat that differs in iasp2 
-        # and the same in iasp1
-        ias = list(ias)
-        iasplist = []
-        for i in range(len(ias)):
-            if ias[i]!=0:
-                for j in range(0,ias[i]): # or only up to ias[i]-1?
-                    iasp1 = ias[:]
-                    iasp1[i] = j
-                    for k in range(len(ias)):
-                        if k!=i:
-                            if ias[k]!=0:
-                                for l in range(0,ias[k]):
-                                    iasp2 = ias[:]
-                                    iasp2[k] = l
-                                    iasp3 = ias[:]
-                                    iasp3[k] = l
-                                    iasp3[i] = j
-                                    iasplist.append((iasp1,iasp2,iasp3))
-        # todo: We should somehow remove (or avoid) the duplicates, 
-        # because iasp1 and iasp2 are interchangeable.
-        # return iasplist
-        #print("iasplist: ",iasplist)
-        predictions = []
-        for iasp1,iasp2,iasp3 in iasplist:
-            #print(iasp1,iasp2,iasp3)
-            #print(results[tuple(iasp1)],results[tuple(iasp2)],results[tuple(iasp3)])
-            #print(results[tuple(iasp1)]*results[tuple(iasp2)]/results[tuple(iasp3)])
-            predictions.append(self.results[tuple(iasp1)]*self.results[tuple(iasp2)]/self.results[tuple(iasp3)])
-            #predictions.append(results.item(tuple(iasp1))*results.item(tuple(iasp2))/results.item(tuple(iasp3)))
+    #     # what are iasp1 : differs in one category
+    #     # then iasp2: is the same as ias in the cat that differs in iasp1
+    #     # ... differs in some other category
+    #     # then iasp3: is the same as ias in the cat that differs in iasp2 
+    #     # and the same in iasp1
+    #     ias = list(ias)
+    #     iasplist = []
+    #     for i in range(len(ias)):
+    #         if ias[i]!=0:
+    #             for j in range(0,ias[i]): # or only up to ias[i]-1?
+    #                 iasp1 = ias[:]
+    #                 iasp1[i] = j
+    #                 for k in range(len(ias)):
+    #                     if k!=i:
+    #                         if ias[k]!=0:
+    #                             for l in range(0,ias[k]):
+    #                                 iasp2 = ias[:]
+    #                                 iasp2[k] = l
+    #                                 iasp3 = ias[:]
+    #                                 iasp3[k] = l
+    #                                 iasp3[i] = j
+    #                                 iasplist.append((iasp1,iasp2,iasp3))
+    #     # todo: We should somehow remove (or avoid) the duplicates, 
+    #     # because iasp1 and iasp2 are interchangeable.
+    #     # return iasplist
+    #     #print("iasplist: ",iasplist)
+    #     predictions = []
+    #     for iasp1,iasp2,iasp3 in iasplist:
+    #         #print(iasp1,iasp2,iasp3)
+    #         #print(results[tuple(iasp1)],results[tuple(iasp2)],results[tuple(iasp3)])
+    #         #print(results[tuple(iasp1)]*results[tuple(iasp2)]/results[tuple(iasp3)])
+    #         predictions.append(self.results_mau[tuple(iasp1)]*self.results_mau[tuple(iasp2)]/self.results_mau[tuple(iasp3)])
+    #         #predictions.append(results.item(tuple(iasp1))*results.item(tuple(iasp2))/results.item(tuple(iasp3)))
 
-        return predictions
+    #     return predictions
 
     def collect_one_combination(self,ias,collection_config):
-        
+        ias = tuple(ias)
         # 1. make prediction for ias    
         prediction = self.get_all_predictions(ias)
         if collection_config.get("verbose",False)==True:
@@ -242,9 +258,10 @@ class AudienceCollector:
             self.predictions_median[ias] = -2
             self.predictions_stdev[ias] = -2
             self.predictions_len[ias] = len(prediction)
-
+        print(ias, "prediction_median: ",self.predictions_median[ias])
+        print(ias, "prediction_median: ",self.predictions_median)
         # 2. sub-1000 handling: skip or  make extra-requests?
-        if self.predictions_median[ias] < 1050:
+        if 1 < self.predictions_median[ias] < 1050:
             if collection_config.get("skip_sub_1000",True)==True:
                 # save prediction but skip the request
                 self.extract_and_save_result(ias,prediction,query_skipped=True,collection_config=collection_config)
@@ -253,10 +270,10 @@ class AudienceCollector:
                 #continue
             else: # don't skip, but make extra requests:
                 # ...
-                audience = self.get_and_save_results(ias,prediction,sub1000=True)
+                audience = self.call_request_fb(ias,prediction)
         else:
             # make a normal request:
-            audience = self.get_and_save_results(ias,prediction)
+            audience = self.call_request_fb(ias,prediction)
         self.results_mau[ias] = audience
 
 
@@ -275,39 +292,35 @@ class AudienceCollector:
         # prepare main loop:
         catlens = [len(input_data_json[cat])+1 for cat in self.categories]
 
-        # Numpy-arrays for fast access to results (needed for predictions)
-        results_mau = np.ones((catlens))
-        predictions_median = np.full((catlens),-1)
-        predictions_stdev = np.full((catlens),-1)
         
 
         if collection_config.get("less_combinations",False)==True:
             print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]))
             print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]))
             # start main loop:
-            for i0 in range(catlens[0]):
+            for i0 in range(1, catlens[0]):
                 for i1 in range(catlens[1]):
                     i2=i3=i4=i5=0
                     for i2 in range(catlens[2]):
                         ias = (i0,i1,i2,i3,i4,i5)
-                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                        self.collect_one_combination(ias,collection_config)
                     i2=i3=i4=i5=0
-                    for i3 in range(catlens[3]):
+                    for i3 in range(1,catlens[3]):
                         ias = (i0,i1,i2,i3,i4,i5)
-                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                        self.collect_one_combination(ias,collection_config)
                     i2=i3=i4=i5=0
-                    for i4 in range(catlens[4]):
+                    for i4 in range(1,catlens[4]):
                         ias = (i0,i1,i2,i3,i4,i5)
-                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                        self.collect_one_combination(ias,collection_config)
                     i2=i3=i4=i5=0
-                    for i5 in range(catlens[5]):
+                    for i5 in range(1,catlens[5]):
                         ias = (i0,i1,i2,i3,i4,i5)
-                        self.collect_one_combination(ias,results_mau,predictions_median,predictions_stdev)
+                        self.collect_one_combination(ias,collection_config)
         else:
             print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]))
             print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]))
             # start main loop:
-            for i0 in range(catlens[0]):
+            for i0 in range(1,catlens[0]):
                 for i1 in range(catlens[1]):
                     for i2 in range(catlens[2]):
                         for i3 in range(catlens[3]):
@@ -324,7 +337,7 @@ class AudienceCollector:
         """
         audience = self.get_results(ias,sub1000=sub1000)
         # save results:
-        self.extract_and_save_results(ias,audience,prediction)
+        self.extract_and_save_result(ias,audience,prediction)
         return audience
 
     def get_all_predictions(self,ias):
@@ -365,13 +378,21 @@ class AudienceCollector:
             #print(iasp1,iasp2,iasp3)
             #print(results[tuple(iasp1)],results[tuple(iasp2)],results[tuple(iasp3)])
             #print(results[tuple(iasp1)]*results[tuple(iasp2)]/results[tuple(iasp3)])
-            predictions.append(self.results[tuple(iasp1)]*self.results[tuple(iasp2)]/self.results[tuple(iasp3)])
+            #predictions.append(self.results_mau[tuple(iasp1)]*self.results_mau[tuple(iasp2)]/self.results_mau[tuple(iasp3)])
+            res_iasp1= self.results_mau.get(tuple(iasp1),-1)
+            res_iasp2= self.results_mau.get(tuple(iasp2),-1)
+            res_iasp3= self.results_mau.get(tuple(iasp3),-1)
+            if res_iasp1!=-1 and res_iasp2!=-1 and res_iasp3!=-1:
+                predictions.append(res_iasp1*res_iasp2/res_iasp3)
+            else:
+                pass # predictions.append(-1)
+            #predictions.append(self.results_mau.get(tuple(iasp1),*self.results_mau[tuple(iasp2)]/self.results_mau[tuple(iasp3)])
             #predictions.append(results.item(tuple(iasp1))*results.item(tuple(iasp2))/results.item(tuple(iasp3)))
 
         return predictions
 
 
-    def handle_send_request_error(self, response, url, params, ias, tryNumber):
+    def handle_send_request_error(self, response, url, params, ias, targeting_spec, prediction, tryNumber):
         """called only by self.send_request"""
         try:
             error_json = json.loads(response.text)
@@ -379,7 +400,7 @@ class AudienceCollector:
                 "code"] == constants.API_UNKOWN_ERROR_CODE_2:
                 logging.error(f"{error_json}, {params}, {url}")
                 time.sleep(constants.INITIAL_TRY_SLEEP_TIME * tryNumber)
-                return self.send_request(url, params, ias, tryNumber)
+                return self.send_request(url, params, ias,targeting_spec, prediction, tryNumber)
             # elif error_json["error"]["code"] == constants.INVALID_PARAMETER_ERROR and "error_subcode" in error_json[
             #     "error"] and error_json["error"]["error_subcode"] == constants.FEW_USERS_IN_CUSTOM_LOCATIONS_SUBCODE_ERROR:
             #     return get_fake_response()
@@ -402,7 +423,7 @@ class AudienceCollector:
     def send_request(self, url, params,ias,targeting_spec, prediction, tryNumber=0):
         """called only by self.call_request_fb"""
         tryNumber += 1
-        time.sleep(10)
+        time.sleep(3)
         # todo: more intelligent sleep-management
         if tryNumber >= 20: # self.MAX_NUMBER_TRY:
             print("Maximum Number of Tries reached. Failing.")
@@ -412,20 +433,23 @@ class AudienceCollector:
             # save request:
             self.save_request(url, params, response, ias, targeting_spec, tryNumber)
             if response.status_code == 200:
-                self.extract_and_save_result(self, ias, targeting_spec,responsecontent=response.content, prediction=prediction,collection_id=self.collection_id,targetspec=targeting_spec)
+                self.extract_and_save_result(ias, targeting_spec,responsecontent=response.content, prediction=prediction,collection_id=self.collection_id,targetspec=targeting_spec)
             elif response.status_code == 999 :
                 print("999")
                 time.sleep(30)
         except Exception as error:
-            raise Exception(error.message)
+            print("Error, ", str(error))
+            time.sleep(10)
+            #raise Exception(error)
         if response.status_code == 200:
             return response
         else:
-            return self.handle_send_request_error(response, url, params, ias, prediction, tryNumber)
+            return self.handle_send_request_error(response, url, params, ias, targeting_spec, prediction, tryNumber)
 
 
     def call_request_fb(self, ias, prediction):
         targeting_spec = self.create_targeting_spec_from_ias(ias)
+        print("tarspec: ",targeting_spec)
         payload = {
             'optimization_goal': "AD_RECALL_LIFT",
             'targeting_spec': json.dumps(targeting_spec),
@@ -433,10 +457,11 @@ class AudienceCollector:
         }
         payload_str = str(payload)
         #print("\tSending in request: %s" % (payload_str))
-        url = constants.REACHESTIMATE_URL.format(self.account)
+        url = constants.REACHESTIMATE_URL.format(self.account_number)
         response = self.send_request(url, payload,ias,targeting_spec,prediction)
 
         return response.content
+
 
     def create_targeting_spec_from_ias(self,ias):
         return self.create_targeting_spec_from_list_of_ias([ias])
@@ -447,10 +472,16 @@ class AudienceCollector:
         for ias in iaslist:
             for ia,cat in zip(ias,self.categories):
                 if ia!=0:
-                    if cat not in newspec:
-                        newspec[cat]=self.input_data_json[cat][ia-1]
-                    else:
-                        newspec[cat]+=self.input_data_json[cat][ia-1]
+                    if cat!="geo_locations":
+                        if cat not in newspec:
+                            newspec[cat]=[self.input_data_json[cat][ia-1]]
+                        else:
+                            newspec[cat].append(self.input_data_json[cat][ia-1])
+                    elif cat=="geo_locations":
+                        if cat not in newspec:
+                            newspec[cat] = {self.input_data_json[cat][ia-1]["name"]:self.input_data_json[cat][ia-1]["values"], "location_types":self.input_data_json[cat][ia-1]["location_types"]}
+                        else:
+                            newspec[cat][self.input_data_json[cat][ia-1]["name"]].append(self.input_data_json[cat][ia-1]["values"])
                 else:
                     pass
         return newspec
@@ -494,21 +525,25 @@ class AudienceCollector:
     #         self.cursor.execute('INSERT INTO errors (error_message, ias,                qtime,        response) VALUES (?,?,?,?)',
     #                                                   (str(e), str(ias),    datetime.now().timestamp()))
     #         #print(cursor.lastrowid)
-    #     self.connection.commit()
+    #     self.db.commit()
     #     self.results[tuple(ias)] = result
 
     def save_request(self, url, params, response, ias,targeting_spec, tryNumber):
+
+        print("save_request",tryNumber,ias,targeting_spec,response.status_code)
+        values = (str(url), str(datetime.now()), str(targeting_spec), str(response.content), str(self.collection_id), str(response.status_code), str(ias), str(tryNumber))
         query = f"""INSERT INTO queries (url, qtime, targeting_spec, response,collection_id,status_code,ias,tryNumber)
-         VALUES ('{url}', '{str(datetime.now())}', '{targeting_spec}', '{response.content}', '{self.collection_id}', '{response.status_code}', '{ias}', '{tryNumber}')"""
+         VALUES (?,?,?,?,?,?,?,?)"""
         try:
-            self.cursor.execute(query)
+            self.cursor.execute(query, values)
         except Exception as e:
-            print("\n",tryNumber,ias, "Error while saving the query! ", str(e),str(datetime.now()),)
-            print()
-            self.cursor.execute('INSERT INTO errors (error_message, ias,                qtime,        response) VALUES (?,?,?,?)',
-                                                      (str(e), str(ias),    datetime.now().timestamp()))
+            print("\n",tryNumber,ias, "Error while saving the query 1! ", str(e),str(datetime.now()),)
+            print("query:",query)
+            print("values...:",values)
+            self.cursor.execute('INSERT INTO errors (error_message, ias,                qtime,        response, comment) VALUES (?,?,?,?,?)',
+                                                      (str(e), str(ias),    datetime.now().timestamp(),str(response),str(query)))
             #print(cursor.lastrowid)
-        self.connection.commit()
+        self.db.commit()
 
 
     def extract_and_save_result(self, ias, targeting_spec,responsecontent="", prediction=[],collection_id=0, query_string="",targetspec="",geolocation=None,desspec="|||||"):
@@ -556,7 +591,7 @@ class AudienceCollector:
                 estimate_ready = "-3"
                 audience_size = "-3"
             else:
-                mau=mau_lower=mau_upper="-4"
+                mau=mau_lower=mau_upper=audience_size="-4"
                 print("this shouldnt happen!")
             try:
                 genders = str(json.dumps(targetspec['genders']))
@@ -577,7 +612,7 @@ class AudienceCollector:
                 behaviors = json.dumps(targetspec["flexible_spec"])
             except Exception as e:
                 behaviors = "notSpecified"
-                print(ias,"saveerror2 - behabiors", str(e))
+                print(ias,"saveerror2 - behaviors", str(e))
             try:
                 age_min = str(json.dumps(targetspec['age_min']))
             except Exception as e:
@@ -598,21 +633,23 @@ class AudienceCollector:
                 prediction_std= "-2"
                 prediction_min= "-2"
                 prediction_max= "-2"
+            self.results_mau[tuple(ias)] = mau
 
             #print(ias,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,irun)
-            self.cursor.execute('''INSERT INTO queries (query_string,   targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
+            query_string = '''INSERT INTO results (query_string,   targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
-            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?)''',
+            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?)'''
+            self.cursor.execute(query_string,
             (str(query_string),  json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
             prediction,prediction_mean,prediction_std,prediction_min, prediction_max))
         except Exception as e:
             returnerror=2
-            print("\n",ias, "Error while saving the query! ", str(e),str(datetime.now()))
+            print("\n",ias, "Error while saving the query 2 ! ", str(e),str(datetime.now()), "query:",query_string)
             print()
-            self.cursor.execute('INSERT INTO queries (query_string, targeting_spec,                qtime,        response) VALUES (?,?,?,?)',
+            self.cursor.execute('INSERT INTO results (query_string, targeting_spec,                qtime,        response) VALUES (?,?,?,?)',
                                                 (str(query_string), json.dumps(targetspec),    datetime.now().timestamp(),responsecontent))
             #print(cursor.lastrowid)
-        self.connection.commit()
+        self.db.commit()
         return mau,returnerror #cursor.lastrowid
 

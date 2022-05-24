@@ -1,0 +1,12 @@
+{
+  "name": "test collection1",
+  "geo_locations": [
+    { "name": "countries", "values": ["CZ"], "location_types": ["home"] },
+    { "name": "countries", "values": ["DE"], "location_types": ["home"] }
+  ],
+  "genders": [1, 2],
+  "ages_ranges": [{ "min": 18, "max": 39 }, { "min": 40 }],
+  "behavior": [{ "name": "Expats (Algeria)", "or": [6071248932383] }],
+  "scholarities": [],
+  "interests": []
+}
