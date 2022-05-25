@@ -81,6 +81,7 @@ class AudienceCollector:
                             pk_results integer primary key autoincrement,
                             fk_queries integer,
                             targeting_spec json,
+                            collection_id integer,
                             qtime varchar(50),
                             query_string varchar(5000),
                             response json,
@@ -202,6 +203,12 @@ class AudienceCollector:
         self.collection_id = self.cursor.lastrowid
         self.start_collection(input_data_json, options_json, collection_id = self.collection_id,)
 
+    def finish_collection(self, collection_id):
+        '''set finished=True in collections-column
+        '''
+        query = f"""UPDATE collections SET finished = ? WHERE collection_id = ? """
+        self.cursor.execute(query, (True, collection_id))
+        self.connection.commit()
 
     # def get_all_predictions(self,ias):
     #     # 1. generate all variations of ias that can form a prediction
@@ -329,6 +336,7 @@ class AudienceCollector:
                                     ias = (i0,i1,i2,i3,i4,i5)
                                     self.collect_one_combination(ias, collection_config)
     
+        self.finish_collection(collection_id)
 
     def get_and_save_results(self,ias,prediction,sub1000=True):
         """
@@ -383,6 +391,7 @@ class AudienceCollector:
             res_iasp2= self.results_mau.get(tuple(iasp2),-1)
             res_iasp3= self.results_mau.get(tuple(iasp3),-1)
             if res_iasp1!=-1 and res_iasp2!=-1 and res_iasp3!=-1:
+                print("get-all-predictions...",res_iasp1,res_iasp2,res_iasp3)
                 predictions.append(res_iasp1*res_iasp2/res_iasp3)
             else:
                 pass # predictions.append(-1)
@@ -459,7 +468,6 @@ class AudienceCollector:
         #print("\tSending in request: %s" % (payload_str))
         url = constants.REACHESTIMATE_URL.format(self.account_number)
         response = self.send_request(url, payload,ias,targeting_spec,prediction)
-
         return response.content
 
 
@@ -468,20 +476,50 @@ class AudienceCollector:
 
     def create_targeting_spec_from_list_of_ias(self,iaslist):
         newspec = {}# todo: add parts that do not change
-        
         for ias in iaslist:
             for ia,cat in zip(ias,self.categories):
                 if ia!=0:
-                    if cat!="geo_locations":
-                        if cat not in newspec:
-                            newspec[cat]=[self.input_data_json[cat][ia-1]]
-                        else:
-                            newspec[cat].append(self.input_data_json[cat][ia-1])
-                    elif cat=="geo_locations":
+                    if cat=="geo_locations":
                         if cat not in newspec:
                             newspec[cat] = {self.input_data_json[cat][ia-1]["name"]:self.input_data_json[cat][ia-1]["values"], "location_types":self.input_data_json[cat][ia-1]["location_types"]}
                         else:
                             newspec[cat][self.input_data_json[cat][ia-1]["name"]].append(self.input_data_json[cat][ia-1]["values"])
+                    elif cat=="ages_ranges":
+                        if "age_min" not in newspec:
+                            if "min" in self.input_data_json[cat][ia-1]:
+                                newspec["age_min"] = self.input_data_json[cat][ia-1]["min"]
+                        else:
+                            newspec["age_min"] = min(newspec["age_min"],self.input_data_json[cat][ia-1]["min"])
+                        if "age_max" not in newspec:
+                            if "max" in self.input_data_json[cat][ia-1]:
+                                newspec["age_max"] = self.input_data_json[cat][ia-1]["max"]
+                        else:
+                            newspec["age_max"] = max(newspec["age_max"],self.input_data_json[cat][ia-1]["max"])
+                    elif cat=="behavior":
+                        if "flexible_spec" not in newspec:
+                            newspec["flexible_spec"] = [{"behaviors":[{"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["or"][0]}]}]
+                        else:
+                            newspec["flexible_spec"]["behaviors"].append({"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["or"][0]})
+                    elif cat=="scholarities":
+                        if "flexible_spec" not in newspec:
+                            # "flexible_spec" is a list of dictionaries
+                            newspec["flexible_spec"] = [{"education_statuses":self.input_data_json[cat][ia-1]["or"]}]
+                        else:
+                            # "flexible_spec" is already there
+                            education_statuses_is_in_flexible_spec = False
+                            for fl in newspec["flexible_spec"]:
+                                if "education_statuses" in fl:
+                                    # "education_statuses" is also there. Extend it:
+                                    fl["education_statuses"].extend(self.input_data_json[cat][ia-1]["or"])
+                                    education_statuses_is_in_flexible_spec = True
+                            if not education_statuses_is_in_flexible_spec:
+                                # "education_statuses" is not there. Add it:
+                                newspec["flexible_spec"].append({"education_statuses":self.input_data_json[cat][ia-1]["or"]})
+                    else:
+                        if cat not in newspec:
+                            newspec[cat]=[self.input_data_json[cat][ia-1]]
+                        else:
+                            newspec[cat].append(self.input_data_json[cat][ia-1])
                 else:
                     pass
         return newspec
@@ -575,7 +613,7 @@ class AudienceCollector:
                     #print(jsn)
                     mau_lower = str(jsn["data"][0]['estimate_mau_lower_bound'])
                     mau_upper = str(jsn["data"][0]['estimate_mau_upper_bound'])
-                    mau = int((float(mau_lower)+float(mau_upper))/2)
+                    mau =audience_size= int((float(mau_lower)+float(mau_upper))/2)
                     dau = str(jsn["data"][0]['estimate_dau'])
                     estimate_ready = str(jsn["data"][0]['estimate_ready'])
                 except Exception as e:
@@ -587,6 +625,7 @@ class AudienceCollector:
                     audience_size = "-2"
                     #time.sleep(3600)
             elif responsecontent=="skipped":
+                print("skipped")
                 mau=dau=mau_lower=mau_upper=audience_size="-3"
                 estimate_ready = "-3"
                 audience_size = "-3"
@@ -638,11 +677,12 @@ class AudienceCollector:
             #print(ias,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,irun)
             query_string = '''INSERT INTO results (query_string,   targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
-            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?)'''
-            self.cursor.execute(query_string,
-            (str(query_string),  json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
-            dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
-            prediction,prediction_mean,prediction_std,prediction_min, prediction_max))
+            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?)'''
+            values = [str(x) for x in [str(query_string),  json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
+            dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,str(ias),collection_id,
+            prediction,prediction_mean,prediction_std,prediction_min, prediction_max]]
+            print("values:", values)
+            self.cursor.execute(query_string,values)
         except Exception as e:
             returnerror=2
             print("\n",ias, "Error while saving the query 2 ! ", str(e),str(datetime.now()), "query:",query_string)
