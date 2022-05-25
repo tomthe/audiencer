@@ -19,7 +19,7 @@ from ast import literal_eval as make_tuple
 
 class AudienceCollector:
 
-    def __init__(self, db_file_name, fn_input_data=None, token=None,account_number=None,credentials_fn=None,api_version="13.0"):
+    def __init__(self, db_file_name, token=None,account_number=None,credentials_fn=None,api_version="13.0"):
         self.db_file_name = db_file_name
         self.collection_id = -1
         if token != None:
@@ -32,10 +32,6 @@ class AudienceCollector:
         self.db = sqlite3.connect(self.db_file_name)
         self.cursor = self.db.cursor()
         self.init_db()
-        if fn_input_data != None:
-            self.read_input_data_json(fn_input_data)
-        else:
-            self.input_data_json = None
         self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities", "interests"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
@@ -226,23 +222,27 @@ class AudienceCollector:
         self.restart_collection(collection_id)
 
 
-    def start_new_collection(self,input_data_json, options_json, collection_name="default_collection", comment=""):
+    def start_new_collection(self,fn_input_data, options_json, collection_name="default_collection", comment=""):
         '''save collection-metadata to collections-column
         then start collection with starting-point=0
         '''
-        print("start_new_collection",(collection_name, input_data_json, False, datetime.now(), "", options_json,  comment))
+        if fn_input_data != None:
+            self.read_input_data_json(fn_input_data)
+        else:
+            self.input_data_json = None
+        print("start_new_collection",(collection_name, self.input_data_json, False, datetime.now(), "", options_json,  comment))
         query = f"""INSERT INTO collections (collection_name, input_data_json, finished, start_time, end_time, config, comment)
                     VALUES (?,?,?,?,?, ?,?)"""
-        self.cursor.execute(query, (collection_name, json.dumps(input_data_json), str(False), str(datetime.now()), "", json.dumps(options_json),  comment))
+        self.cursor.execute(query, (collection_name, json.dumps(self.input_data_json), str(False), str(datetime.now()), "", json.dumps(options_json),  comment))
         self.collection_id = self.cursor.lastrowid
-        self.start_collection(input_data_json, options_json, collection_id = self.collection_id,)
+        self.start_collection(options_json, collection_id = self.collection_id,)
 
     def finish_collection(self, collection_id):
         '''set finished=True in collections-column
         set end_time=now()
         '''
         query = f"""UPDATE collections SET finished = ?, end_time = ? WHERE collection_id = ? """
-        self.cursor.execute(query, (True, collection_id, datetime.now()))
+        self.cursor.execute(query, ("True", collection_id, datetime.now()))
         self.db.commit()
 
     # def get_all_predictions(self,ias):
@@ -326,7 +326,7 @@ class AudienceCollector:
 
 
 
-    def start_collection(self, input_data_json, collection_config={}, collection_id=None, skip_n=0):
+    def start_collection(self, collection_config={}, collection_id=None, skip_n=0):
         '''
         
         '''
@@ -335,7 +335,7 @@ class AudienceCollector:
             # fail?
             collection_id=-1
         # prepare main loop:
-        catlens = [len(input_data_json[cat])+1 for cat in self.categories]
+        catlens = [len(self.input_data_json[cat])+1 for cat in self.categories]
 
         
 
