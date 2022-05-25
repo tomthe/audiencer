@@ -30,12 +30,15 @@ class AudienceCollector:
         self.db = sqlite3.connect(self.db_file_name)
         self.cursor = self.db.cursor()
         self.init_db()
-        self.read_input_data_json(fn_input_data)
+        if fn_input_data != None:
+            self.read_input_data_json(fn_input_data)
+        else:
+            self.input_data_json = None
         self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities", "interests"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
 
-        catlens = [len(self.input_data_json[cat])+1 for cat in self.categories]
+        #catlens = [len(self.input_data_json[cat])+1 for cat in self.categories]
 
         # Numpy-arrays for fast access to results (needed for predictions)
         self.results_mau = {} #np.ones((catlens))
@@ -200,14 +203,15 @@ class AudienceCollector:
         self.config = json.loads(collection_info[1])
 
         # get the last query_id
-        query = f"""SELECT ias, mau from results where collection_id = ? ORDER BY pk_results DESC LIMIT 1"""
+        query = f"""SELECT ias, mau from results where collection_id = ? ORDER BY pk_results DESC"""
         self.cursor.execute(query,(collection_id,))
         # loop through already fetched results and add them to self.results_mau:
         for result in self.cursor.fetchall():
+            print("restore result: ", result)
             self.results_mau[result[0]] = result[1]
         print("results_mau", self.results_mau)
         self.collection_id = collection_id
-        self.start_collection(self.input_data_json, options_json=self.config, collection_id = self.collection_id,)
+        self.start_collection(self.input_data_json, collection_config=self.config, collection_id = self.collection_id,)
 
     def restart_last_collection(self):
         """
@@ -237,7 +241,7 @@ class AudienceCollector:
         '''
         query = f"""UPDATE collections SET finished = ?, end_time = ? WHERE collection_id = ? """
         self.cursor.execute(query, (True, collection_id, datetime.now()))
-        self.connection.commit()
+        self.db.commit()
 
     # def get_all_predictions(self,ias):
     #     # 1. generate all variations of ias that can form a prediction
@@ -298,7 +302,7 @@ class AudienceCollector:
             self.predictions_stdev[ias] = -2
             self.predictions_len[ias] = len(prediction)
         print(ias, "prediction_median: ",self.predictions_median[ias])
-        print(ias, "prediction_median: ",self.predictions_median)
+        #print(ias, "prediction_median: ",self.predictions_median)
         # 2. sub-1000 handling: skip or  make extra-requests?
         if 1 < self.predictions_median[ias] < 1050:
             if collection_config.get("skip_sub_1000",True)==True:
@@ -423,7 +427,7 @@ class AudienceCollector:
             res_iasp2= self.results_mau.get(tuple(iasp2),-1)
             res_iasp3= self.results_mau.get(tuple(iasp3),-1)
             if res_iasp1>=0 and res_iasp2>=0 and res_iasp3>=0:
-                print("get-all-predictions...",res_iasp1,res_iasp2,res_iasp3)
+                #print("get-all-predictions...",res_iasp1,res_iasp2,res_iasp3)
                 predictions.append(res_iasp1*res_iasp2/res_iasp3)
             else:
                 pass # predictions.append(-1)
@@ -474,7 +478,7 @@ class AudienceCollector:
             # save request:
             fk_queries = self.save_request(url, params, response, ias, targeting_spec, tryNumber)
             if response.status_code == 200:
-                self.extract_and_save_result(ias, targeting_spec,responsecontent=response.content, prediction=prediction,collection_id=self.collection_id,targetspec=targeting_spec,fk_queries=fk_queries)
+                self.extract_and_save_result(ias, targeting_spec,responsecontent=response.content, prediction=prediction,collection_id=self.collection_id,fk_queries=fk_queries)
             elif response.status_code == 999 :
                 print("999")
                 time.sleep(30)
@@ -600,7 +604,7 @@ class AudienceCollector:
 
     def save_request(self, url, params, response, ias,targeting_spec, tryNumber):
 
-        print("save_request",tryNumber,ias,targeting_spec,response.status_code)
+        #print("save_request",tryNumber,ias,targeting_spec,response.status_code)
         values = (str(url), str(datetime.now()), json.dumps(targeting_spec), str(response.content), str(self.collection_id), str(response.status_code), str(ias), str(tryNumber))
         query = f"""INSERT INTO queries (url, qtime, targeting_spec, response,collection_id,status_code,ias,tryNumber)
          VALUES (?,?,?,?,?,?,?,?)"""
@@ -617,7 +621,7 @@ class AudienceCollector:
         self.db.commit()
 
 
-    def extract_and_save_result(self, ias, targeting_spec,responsecontent="", prediction=[],collection_id=0, query_string="",targetspec="",query_skipped=False,geolocation=None,desspec="|||||",fk_queries=0):
+    def extract_and_save_result(self, ias, targeting_spec,responsecontent="", prediction=[],collection_id=0, query_string="",query_skipped=False,geolocation=None,desspec="|||||",fk_queries=0):
         """
         save query to a local SQLite database.
         Extract some information (mau, ...) if possible
@@ -659,26 +663,26 @@ class AudienceCollector:
                     #time.sleep(3600)
             elif responsecontent=="skipped":
                 print("skipped")
-                mau=dau=mau_lower=mau_upper=audience_size="-3"
-                estimate_ready = "-3"
-                audience_size = "-3"
+                mau=dau=mau_lower=mau_upper=audience_size=-3
+                estimate_ready = -3
+                audience_size = -3
             else:
                 mau=mau_lower=mau_upper=audience_size="-4"
                 print("this shouldnt happen!")
             try:
-                genders = str(json.dumps(targetspec['genders']))
+                genders = str(json.dumps(targeting_spec['genders']))
             except Exception as e:
                 genders = "no"
-                print(ias,"saveerror2 - genders", str(e))
+                #print(ias,"saveerror2 - genders", str(e))
             try:
-                geo_locations =  json.dumps(targetspec["geo_locations"])
+                geo_locations =  json.dumps(targeting_spec["geo_locations"])
             except Exception as e:
                 geo_locations =  "notSpecified"
                 print(ias,"saveerror2 - geo_locations", str(e))
             try:
                 education_statuses = "notSpecified"
-                if "flexible_spec" in targetspec:
-                    for fl in targetspec["flexible_spec"] :
+                if "flexible_spec" in targeting_spec:
+                    for fl in targeting_spec["flexible_spec"] :
                         if "education_statuses" in fl:
                             education_statuses = json.dumps(fl["education_statuses"])
             except Exception as e:
@@ -686,51 +690,51 @@ class AudienceCollector:
                 #print(ias,"saveerror2 - education-statuesegenders", str(e))
             try:
                 behaviors = "notSpecified"
-                if "flexible_spec" in targetspec:
-                    for fl in targetspec["flexible_spec"] :
+                if "flexible_spec" in targeting_spec:
+                    for fl in targeting_spec["flexible_spec"] :
                         if "behaviors" in fl:
                             education_statuses = json.dumps(fl["behaviors"])
             except Exception as e:
                 behaviors = "notSpecified"
                 #print(ias,"saveerror2 - behaviors", str(e))
             try:
-                age_min = str(json.dumps(targetspec['age_min']))
+                age_min = str(json.dumps(targeting_spec['age_min']))
             except Exception as e:
                 age_min = "0"
                 #print(ias,"saveerror2 - age_min", str(e))
             try:
-                age_max = targetspec['age_max']
+                age_max = targeting_spec['age_max']
             except Exception as e:
                 age_max = "100"
                 #print(ias,"saveerror2 - age_max", str(e))
             try:
-                prediction_mean = str(st.mean(prediction))
-                prediction_std= str(st.stdev(prediction))
-                prediction_min= str(min(prediction))
-                prediction_max= str(max(prediction))
+                prediction_mean = st.mean(prediction)
+                prediction_std= st.stdev(prediction)
+                prediction_min= min(prediction)
+                prediction_max= max(prediction)
             except Exception as e:
-                prediction_mean = "-2"
-                prediction_std= "-2"
-                prediction_min= "-2"
-                prediction_max= "-2"
+                prediction_mean = -2
+                prediction_std= -2
+                prediction_min= -2
+                prediction_max= -2
             if mau > 0:
                 self.results_mau[tuple(ias)] = mau
 
             #print(ias,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,irun)
-            query_string = '''INSERT INTO results (query_string, fk_queries,  targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
+            query_string = '''INSERT INTO results (fk_queries,  targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
-            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?)'''
-            values = [str(x) for x in [str(query_string),  fk_queries, json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
+            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?)'''
+            values = [str(x) for x in [fk_queries, json.dumps(targeting_spec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,str(ias),collection_id,
             prediction,prediction_mean,prediction_std,prediction_min, prediction_max]]
-            print("values:", values)
+            #print("values:", values)
             self.cursor.execute(query_string,values)
         except Exception as e:
             returnerror=2
             print("\n",ias, "Error while saving the query 2 ! ", str(e),str(datetime.now()), "query:",query_string)
             print()
             self.cursor.execute('INSERT INTO results (query_string, targeting_spec,                qtime,        response) VALUES (?,?,?,?)',
-                                                (str(query_string), json.dumps(targetspec),    datetime.now().timestamp(),responsecontent))
+                                                (str(query_string), json.dumps(targeting_spec),    datetime.now().timestamp(),responsecontent))
             #print(cursor.lastrowid)
         self.db.commit()
         return mau,returnerror #cursor.lastrowid
