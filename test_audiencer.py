@@ -87,7 +87,7 @@ with open("input_data_test.json", "w") as outfile:
 importlib.reload(audiencer)
 options_json={"skip_sub_1000":True,"less_combinations":False}
 
-audi = audiencer.AudienceCollector("test_audiencer6.sqlite",fn_input_data="input_data_test.json",credentials_fn="credentials2.csv")
+audi = audiencer.AudienceCollector("test_audiencer7.sqlite",fn_input_data="input_data_test.json",credentials_fn="credentials2.csv")
 audi.create_targeting_spec_from_list_of_ias([[0,0,0,0,0,0]])
 #audi.collect_one_combination([0,0,0,0,0,0],options_json)
 audi.start_new_collection(input_data_json, options_json, collection_name="default_collection", comment="")
@@ -96,3 +96,16 @@ audi.db.close()
 # %%
 ias = (1, 0, 0, 2, 0, 0)
 audi.collect_one_combination([0,0,0,0,0,0],options_json)
+
+#%%
+audi.check_last_collection()
+# %%
+importlib.reload(audiencer)
+audi = audiencer.AudienceCollector("test_audiencer7.sqlite",fn_input_data="input_data_test.json",credentials_fn="credentials2.csv")
+audi.restart_collection()
+# %%
+
+importlib.reload(audiencer)
+audi = audiencer.AudienceCollector("test_audiencer8.sqlite",fn_input_data="input_data_test.json",credentials_fn="credentials2.csv")
+audi.restart_last_collection()
+# %%

@@ -54,6 +54,7 @@ class AudienceCollector:
         creates the tables in the db"""
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS collections (
                             collection_id integer primary key autoincrement,
+                            collection_ids_from_same_collection text,
                             collection_name varchar(100),
                             input_data_json json,
                             finished boolean,
@@ -184,13 +185,40 @@ class AudienceCollector:
         print(todo_later_info)
 
         
-    def restart_collection(collection_id):
+    def restart_collection(self, collection_id=2):
         """
         Restarts a collection.
         1. retrieves necessary collection input from db (what to collect, where to start)
         """
-        ...
-        query = f"""UPDATE """
+        print("restart collection", collection_id)
+        query = f"""SELECT input_data_json,config, collection_name from collections where collection_id = ? """
+        self.cursor.execute(query,(collection_id,))
+        collection_info = self.cursor.fetchone()
+        print("input-data-json: ", collection_info[0])
+        print("input-data-json: ", json.loads(collection_info[0]))
+        self.input_data_json =json.loads(collection_info[0])
+        self.config = json.loads(collection_info[1])
+
+        # get the last query_id
+        query = f"""SELECT ias, mau from results where collection_id = ? ORDER BY pk_results DESC LIMIT 1"""
+        self.cursor.execute(query,(collection_id,))
+        # loop through already fetched results and add them to self.results_mau:
+        for result in self.cursor.fetchall():
+            self.results_mau[result[0]] = result[1]
+        print("results_mau", self.results_mau)
+        self.collection_id = collection_id
+        self.start_collection(self.input_data_json, options_json=self.config, collection_id = self.collection_id,)
+
+    def restart_last_collection(self):
+        """
+        Restarts the last collection.
+        """
+        q1 = f"""SELECT collection_id from collections 
+                ORDER BY collection_id DESC LIMIT 1"""
+        self.cursor.execute(q1)
+        collection_id = self.cursor.fetchone()[0]
+        self.restart_collection(collection_id)
+
 
     def start_new_collection(self,input_data_json, options_json, collection_name="default_collection", comment=""):
         '''save collection-metadata to collections-column
@@ -199,15 +227,16 @@ class AudienceCollector:
         print("start_new_collection",(collection_name, input_data_json, False, datetime.now(), "", options_json,  comment))
         query = f"""INSERT INTO collections (collection_name, input_data_json, finished, start_time, end_time, config, comment)
                     VALUES (?,?,?,?,?, ?,?)"""
-        self.cursor.execute(query, (collection_name, str(input_data_json), str(False), str(datetime.now()), "", str(options_json),  comment))
+        self.cursor.execute(query, (collection_name, json.dumps(input_data_json), str(False), str(datetime.now()), "", json.dumps(options_json),  comment))
         self.collection_id = self.cursor.lastrowid
         self.start_collection(input_data_json, options_json, collection_id = self.collection_id,)
 
     def finish_collection(self, collection_id):
         '''set finished=True in collections-column
+        set end_time=now()
         '''
-        query = f"""UPDATE collections SET finished = ? WHERE collection_id = ? """
-        self.cursor.execute(query, (True, collection_id))
+        query = f"""UPDATE collections SET finished = ?, end_time = ? WHERE collection_id = ? """
+        self.cursor.execute(query, (True, collection_id, datetime.now()))
         self.connection.commit()
 
     # def get_all_predictions(self,ias):
@@ -252,6 +281,9 @@ class AudienceCollector:
     #     return predictions
 
     def collect_one_combination(self,ias,collection_config):
+        if ias in self.results_mau:
+            # skip, if result already exists from previous run:
+            return
         ias = tuple(ias)
         # 1. make prediction for ias    
         prediction = self.get_all_predictions(ias)
@@ -271,7 +303,7 @@ class AudienceCollector:
         if 1 < self.predictions_median[ias] < 1050:
             if collection_config.get("skip_sub_1000",True)==True:
                 # save prediction but skip the request
-                self.extract_and_save_result(ias,prediction,query_skipped=True,collection_config=collection_config)
+                self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True)
                 # todo: save to table
                 audience = self.predictions_median[ias]
                 #continue
@@ -281,7 +313,7 @@ class AudienceCollector:
         else:
             # make a normal request:
             audience = self.call_request_fb(ias,prediction)
-        self.results_mau[ias] = audience
+        #self.results_mau[ias] = audience
 
 
         #print("---", ias, audience,"pred:",prediction,"|||")
@@ -338,15 +370,15 @@ class AudienceCollector:
     
         self.finish_collection(collection_id)
 
-    def get_and_save_results(self,ias,prediction,sub1000=True):
-        """
-        Gets the results for a given ias-tuple.
-        Saves the results to the db.
-        """
-        audience = self.get_results(ias,sub1000=sub1000)
-        # save results:
-        self.extract_and_save_result(ias,audience,prediction)
-        return audience
+    # def get_and_save_results(self,ias,prediction,sub1000=True):
+    #     """
+    #     Gets the results for a given ias-tuple.
+    #     Saves the results to the db.
+    #     """
+    #     audience = self.get_results(ias,sub1000=sub1000)
+    #     # save results:
+    #     self.extract_and_save_result(ias,audience,prediction)
+    #     return audience
 
     def get_all_predictions(self,ias):
         # 1. generate all variations of ias that can form a prediction
@@ -378,8 +410,8 @@ class AudienceCollector:
         # I have to somehow remove the duplicates, because iasp1 and iasp2 
         # are interchangeable.
         # return iasplist
-
-
+        #print("iasplist: ", iasplist)
+        #print("results_mau: ", self.results_mau)
 
         predictions = []
         for iasp1,iasp2,iasp3 in iasplist:
@@ -390,7 +422,7 @@ class AudienceCollector:
             res_iasp1= self.results_mau.get(tuple(iasp1),-1)
             res_iasp2= self.results_mau.get(tuple(iasp2),-1)
             res_iasp3= self.results_mau.get(tuple(iasp3),-1)
-            if res_iasp1!=-1 and res_iasp2!=-1 and res_iasp3!=-1:
+            if res_iasp1>=0 and res_iasp2>=0 and res_iasp3>=0:
                 print("get-all-predictions...",res_iasp1,res_iasp2,res_iasp3)
                 predictions.append(res_iasp1*res_iasp2/res_iasp3)
             else:
@@ -440,9 +472,9 @@ class AudienceCollector:
         try:
             response = requests.get(url, params=params, timeout=constants.REQUESTS_TIMEOUT)
             # save request:
-            self.save_request(url, params, response, ias, targeting_spec, tryNumber)
+            fk_queries = self.save_request(url, params, response, ias, targeting_spec, tryNumber)
             if response.status_code == 200:
-                self.extract_and_save_result(ias, targeting_spec,responsecontent=response.content, prediction=prediction,collection_id=self.collection_id,targetspec=targeting_spec)
+                self.extract_and_save_result(ias, targeting_spec,responsecontent=response.content, prediction=prediction,collection_id=self.collection_id,targetspec=targeting_spec,fk_queries=fk_queries)
             elif response.status_code == 999 :
                 print("999")
                 time.sleep(30)
@@ -569,11 +601,12 @@ class AudienceCollector:
     def save_request(self, url, params, response, ias,targeting_spec, tryNumber):
 
         print("save_request",tryNumber,ias,targeting_spec,response.status_code)
-        values = (str(url), str(datetime.now()), str(targeting_spec), str(response.content), str(self.collection_id), str(response.status_code), str(ias), str(tryNumber))
+        values = (str(url), str(datetime.now()), json.dumps(targeting_spec), str(response.content), str(self.collection_id), str(response.status_code), str(ias), str(tryNumber))
         query = f"""INSERT INTO queries (url, qtime, targeting_spec, response,collection_id,status_code,ias,tryNumber)
          VALUES (?,?,?,?,?,?,?,?)"""
         try:
             self.cursor.execute(query, values)
+            return self.cursor.lastrowid
         except Exception as e:
             print("\n",tryNumber,ias, "Error while saving the query 1! ", str(e),str(datetime.now()),)
             print("query:",query)
@@ -584,7 +617,7 @@ class AudienceCollector:
         self.db.commit()
 
 
-    def extract_and_save_result(self, ias, targeting_spec,responsecontent="", prediction=[],collection_id=0, query_string="",targetspec="",geolocation=None,desspec="|||||"):
+    def extract_and_save_result(self, ias, targeting_spec,responsecontent="", prediction=[],collection_id=0, query_string="",targetspec="",query_skipped=False,geolocation=None,desspec="|||||",fk_queries=0):
         """
         save query to a local SQLite database.
         Extract some information (mau, ...) if possible
@@ -643,25 +676,33 @@ class AudienceCollector:
                 geo_locations =  "notSpecified"
                 print(ias,"saveerror2 - geo_locations", str(e))
             try:
-                education_statuses = json.dumps(targetspec["education_statuses"])
+                education_statuses = "notSpecified"
+                if "flexible_spec" in targetspec:
+                    for fl in targetspec["flexible_spec"] :
+                        if "education_statuses" in fl:
+                            education_statuses = json.dumps(fl["education_statuses"])
             except Exception as e:
                 education_statuses = "notSpecified"
                 #print(ias,"saveerror2 - education-statuesegenders", str(e))
             try:
-                behaviors = json.dumps(targetspec["flexible_spec"])
+                behaviors = "notSpecified"
+                if "flexible_spec" in targetspec:
+                    for fl in targetspec["flexible_spec"] :
+                        if "behaviors" in fl:
+                            education_statuses = json.dumps(fl["behaviors"])
             except Exception as e:
                 behaviors = "notSpecified"
-                print(ias,"saveerror2 - behaviors", str(e))
+                #print(ias,"saveerror2 - behaviors", str(e))
             try:
                 age_min = str(json.dumps(targetspec['age_min']))
             except Exception as e:
                 age_min = "0"
-                print(ias,"saveerror2 - age_min", str(e))
+                #print(ias,"saveerror2 - age_min", str(e))
             try:
                 age_max = targetspec['age_max']
             except Exception as e:
                 age_max = "100"
-                print(ias,"saveerror2 - age_max", str(e))
+                #print(ias,"saveerror2 - age_max", str(e))
             try:
                 prediction_mean = str(st.mean(prediction))
                 prediction_std= str(st.stdev(prediction))
@@ -672,13 +713,14 @@ class AudienceCollector:
                 prediction_std= "-2"
                 prediction_min= "-2"
                 prediction_max= "-2"
-            self.results_mau[tuple(ias)] = mau
+            if mau > 0:
+                self.results_mau[tuple(ias)] = mau
 
             #print(ias,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,irun)
-            query_string = '''INSERT INTO results (query_string,   targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
+            query_string = '''INSERT INTO results (query_string, fk_queries,  targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
-            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?)'''
-            values = [str(x) for x in [str(query_string),  json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
+            predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?)'''
+            values = [str(x) for x in [str(query_string),  fk_queries, json.dumps(targetspec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,str(ias),collection_id,
             prediction,prediction_mean,prediction_std,prediction_min, prediction_max]]
             print("values:", values)
