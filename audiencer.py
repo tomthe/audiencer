@@ -11,6 +11,8 @@ import json
 import time
 import constants
 import logging
+# https://stackoverflow.com/questions/9763116/parse-a-tuple-from-a-string
+from ast import literal_eval as make_tuple
 
 
 
@@ -208,7 +210,7 @@ class AudienceCollector:
         # loop through already fetched results and add them to self.results_mau:
         for result in self.cursor.fetchall():
             print("restore result: ", result)
-            self.results_mau[result[0]] = result[1]
+            self.results_mau[make_tuple(result[0])] = int(result[1])
         print("results_mau", self.results_mau)
         self.collection_id = collection_id
         self.start_collection(self.input_data_json, collection_config=self.config, collection_id = self.collection_id,)
@@ -304,7 +306,7 @@ class AudienceCollector:
         print(ias, "prediction_median: ",self.predictions_median[ias])
         #print(ias, "prediction_median: ",self.predictions_median)
         # 2. sub-1000 handling: skip or  make extra-requests?
-        if 1 < self.predictions_median[ias] < 1050:
+        if 1 < self.predictions_median[ias] < 600:
             if collection_config.get("skip_sub_1000",True)==True:
                 # save prediction but skip the request
                 self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True)
@@ -371,8 +373,8 @@ class AudienceCollector:
                                 for i5 in range(catlens[5]):
                                     ias = (i0,i1,i2,i3,i4,i5)
                                     self.collect_one_combination(ias, collection_config)
-    
         self.finish_collection(collection_id)
+        print("collection finished!", len(self.results_mau),datetime.now())
 
     # def get_and_save_results(self,ias,prediction,sub1000=True):
     #     """
@@ -437,6 +439,7 @@ class AudienceCollector:
         return predictions
 
 
+
     def handle_send_request_error(self, response, url, params, ias, targeting_spec, prediction, tryNumber):
         """called only by self.send_request"""
         try:
@@ -453,6 +456,12 @@ class AudienceCollector:
             #     "message"] and constants.INGORE_INVALID_ZIP_CODES:
             #     print_warning("Invalid Zip Code:" + str(params[constants.TARGETING_SPEC_FIELD]))
             #     return get_fake_response()
+            elif error_json["error"]["code"] == 8004:
+                print("8004")
+                time.sleep(1800)
+            elif error_json["error"]["code"] == '8004':
+                print("8004")
+                time.sleep(1800)
             else:
                 logging.error("Could not handle error.")
                 logging.error("Error Code:" + str(error_json["error"]["code"]))
@@ -693,7 +702,7 @@ class AudienceCollector:
                 if "flexible_spec" in targeting_spec:
                     for fl in targeting_spec["flexible_spec"] :
                         if "behaviors" in fl:
-                            education_statuses = json.dumps(fl["behaviors"])
+                            behaviors = json.dumps(fl["behaviors"])
             except Exception as e:
                 behaviors = "notSpecified"
                 #print(ias,"saveerror2 - behaviors", str(e))
