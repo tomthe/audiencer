@@ -109,3 +109,5 @@ importlib.reload(audiencer)
 audi = audiencer.AudienceCollector("test_audiencer9.sqlite",credentials_fn="credentials2.csv")
 audi.restart_last_collection()
 # %%
+
+## The big collection:
