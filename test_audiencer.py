@@ -106,8 +106,10 @@ audi.restart_collection()
 # %%
 
 importlib.reload(audiencer)
-audi = audiencer.AudienceCollector("test_audiencer9.sqlite",credentials_fn="credentials2.csv")
-audi.restart_last_collection()
+audi = audiencer.AudienceCollector("audiencer03.sqlite",credentials_fn="credentials2.csv")
+
+options_json={"skip_sub_1000":True,"less_combinations":True}
+audi.start_new_collection(fn_input_data="input_data_whole_world.json", options_json=options_json, collection_name="whole_world_limited", comment="")
 # %%
 
 ## The big collection:

@@ -32,7 +32,7 @@ class AudienceCollector:
         self.db = sqlite3.connect(self.db_file_name)
         self.cursor = self.db.cursor()
         self.init_db()
-        self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities", "interests"]
+        self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities","interests"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
 
@@ -335,12 +335,12 @@ class AudienceCollector:
             # fail?
             collection_id=-1
         # prepare main loop:
-        catlens = [len(self.input_data_json[cat])+1 for cat in self.categories]
+        catlens = [len(self.input_data_json.get(cat,[]))+1 for cat in self.categories]
 
         
 
         if collection_config.get("less_combinations",False)==True:
-            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]))
+            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*catlens[1]*(catlens[2]-1+catlens[3]-1+catlens[4]-1+catlens[5]-1))
             print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]))
             # start main loop:
             for i0 in range(1, catlens[0]):
