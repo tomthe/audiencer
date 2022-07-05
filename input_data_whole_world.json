@@ -88,7 +88,6 @@
     { "name": "countries", "values": ["IL"], "location_types": ["home"] },
     { "name": "countries", "values": ["IN"], "location_types": ["home"] },
     { "name": "countries", "values": ["IQ"], "location_types": ["home"] },
-    { "name": "countries", "values": ["IR"], "location_types": ["home"] },
     { "name": "countries", "values": ["IS"], "location_types": ["home"] },
     { "name": "countries", "values": ["IT"], "location_types": ["home"] },
     { "name": "countries", "values": ["JM"], "location_types": ["home"] },
