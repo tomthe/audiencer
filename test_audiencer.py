@@ -59,9 +59,10 @@ expats = pd.read_csv("./facebook_behavior_expat_origin.csv", header=0)
 print(expats.head(3))
 
 for behavior in range(0, min(len(expats["key"]),2)):
-    input_data_json["behavior"].append(
-        {"name": expats["origin"][behavior], "or": [int(expats["key"][behavior])]}
-    )
+    if expats["origin"] != "Expats (Turkey)":
+        input_data_json["behavior"].append(
+            {"name": expats["origin"][behavior], "or": [int(expats["key"][behavior])]}
+        )
 
 #print(input_data_json)
 print(len(input_data_json["behavior"]),\
@@ -106,10 +107,14 @@ audi.restart_collection()
 # %%
 
 importlib.reload(audiencer)
-audi = audiencer.AudienceCollector("audiencer03.sqlite",credentials_fn="credentials2.csv")
+audi = audiencer.AudienceCollector("audiencer04.sqlite",credentials_fn="credentials2.csv")
 
-options_json={"skip_sub_1000":True,"less_combinations":True}
-audi.start_new_collection(fn_input_data="input_data_whole_world.json", options_json=options_json, collection_name="whole_world_limited", comment="")
+options_json={"skip_sub_1000":False,"less_combinations":True}
+#audi.start_new_collection(fn_input_data="input_data_whole_world.json", options_json=options_json, collection_name="whole_world_limited", comment="")
 # %%
 
+audi.restart_last_collection()
+
 ## The big collection:
+
+# %%
