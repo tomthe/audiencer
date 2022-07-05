@@ -209,7 +209,7 @@ class AudienceCollector:
             self.results_mau[make_tuple(result[0])] = int(result[1])
         print("results_mau", self.results_mau)
         self.collection_id = collection_id
-        self.start_collection(self.input_data_json, collection_config=self.config, collection_id = self.collection_id,)
+        self.start_collection(collection_config=self.config, collection_id = self.collection_id,)
 
     def restart_last_collection(self):
         """
@@ -287,43 +287,51 @@ class AudienceCollector:
     #     return predictions
 
     def collect_one_combination(self,ias,collection_config):
-        if ias in self.results_mau:
-            # skip, if result already exists from previous run:
-            return
-        ias = tuple(ias)
-        # 1. make prediction for ias    
-        prediction = self.get_all_predictions(ias)
-        if collection_config.get("verbose",False)==True:
-            print(ias, "prediction: ",prediction)
-        if len(prediction)>0:
-            self.predictions_median[ias] = st.median(prediction)
-            self.predictions_stdev[ias] = st.stdev(prediction)
-            self.predictions_len[ias] = len(prediction)
-        else:
-            self.predictions_median[ias] = -2
-            self.predictions_stdev[ias] = -2
-            self.predictions_len[ias] = len(prediction)
-        print(ias, "prediction_median: ",self.predictions_median[ias])
-        #print(ias, "prediction_median: ",self.predictions_median)
-        # 2. sub-1000 handling: skip or  make extra-requests?
-        if 1 < self.predictions_median[ias] < 600:
-            if collection_config.get("skip_sub_1000",True)==True:
-                # save prediction but skip the request
-                self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True)
-                # todo: save to table
-                audience = self.predictions_median[ias]
-                #continue
-            else: # don't skip, but make extra requests:
-                # ...
+        try:
+            if ias in self.results_mau:
+                # skip, if result already exists from previous run:
+                return
+            ias = tuple(ias)
+            # 1. make prediction for ias    
+            prediction = self.get_all_predictions(ias)
+            if collection_config.get("verbose",False)==True:
+                print(ias, "prediction: ",prediction)
+            if len(prediction)>0:
+                self.predictions_median[ias] = st.median(prediction)
+                self.predictions_stdev[ias] = st.stdev(prediction)
+                self.predictions_len[ias] = len(prediction)
+            else:
+                self.predictions_median[ias] = -2
+                self.predictions_stdev[ias] = -2
+                self.predictions_len[ias] = len(prediction)
+            print(ias, "prediction_median: ",self.predictions_median[ias])
+            #print(ias, "prediction_median: ",self.predictions_median)
+            # 2. sub-1000 handling: skip or  make extra-requests?
+            if 1 < self.predictions_median[ias] < 600:
+                if collection_config.get("skip_sub_1000",True)==True:
+                    # save prediction but skip the request
+                    self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True)
+                    # todo: save to table
+                    audience = self.predictions_median[ias]
+                    #continue
+                else: # don't skip, but make extra requests:
+                    # ...
+                    audience = self.call_request_fb(ias,prediction)
+            else:
+                # make a normal request:
                 audience = self.call_request_fb(ias,prediction)
-        else:
-            # make a normal request:
-            audience = self.call_request_fb(ias,prediction)
-        #self.results_mau[ias] = audience
+            #self.results_mau[ias] = audience
 
 
-        #print("---", ias, audience,"pred:",prediction,"|||")
-
+            #print("---", ias, audience,"pred:",prediction,"|||")
+        except Exception as e:
+            try:
+                print("collect_one_combination: ",str(e))
+                print("collect_one_combination: ",ias)
+                print("collect_one_combination: ",self.create_targeting_spec_from_ias(ias))
+            except Exception as e2:
+                print("collect_one_combination e2: ",str(e2))
+   
 
 
     def start_collection(self, collection_config={}, collection_id=None, skip_n=0):
@@ -456,12 +464,10 @@ class AudienceCollector:
             #     "message"] and constants.INGORE_INVALID_ZIP_CODES:
             #     print_warning("Invalid Zip Code:" + str(params[constants.TARGETING_SPEC_FIELD]))
             #     return get_fake_response()
-            elif error_json["error"]["code"] == 8004:
-                print("8004")
+            elif error_json["error"]["code"] == 80004 or error_json["error"]["code"] == '80004':
+                print("80004","baba",datetime.now())
                 time.sleep(1800)
-            elif error_json["error"]["code"] == '8004':
-                print("8004")
-                time.sleep(1800)
+                return self.send_request(url, params, ias,targeting_spec, prediction, tryNumber)
             else:
                 logging.error("Could not handle error.")
                 logging.error("Error Code:" + str(error_json["error"]["code"]))
@@ -503,7 +509,7 @@ class AudienceCollector:
 
     def call_request_fb(self, ias, prediction):
         targeting_spec = self.create_targeting_spec_from_ias(ias)
-        print("tarspec: ",targeting_spec)
+        #print("tarspec: ",targeting_spec)
         payload = {
             'optimization_goal': "AD_RECALL_LIFT",
             'targeting_spec': json.dumps(targeting_spec),
@@ -662,6 +668,7 @@ class AudienceCollector:
                     mau =audience_size= int((float(mau_lower)+float(mau_upper))/2)
                     dau = str(jsn["data"][0]['estimate_dau'])
                     estimate_ready = str(jsn["data"][0]['estimate_ready'])
+                    print(ias,mau,dau,estimate_ready,datetime.now())
                 except Exception as e:
                     print(ias,"savequeryerror1",str(e),responsecontent,str(datetime.now()))
                     returnerror=1
@@ -671,7 +678,7 @@ class AudienceCollector:
                     audience_size = "-2"
                     #time.sleep(3600)
             elif responsecontent=="skipped":
-                print("skipped")
+                print(ias,"skipped")
                 mau=dau=mau_lower=mau_upper=audience_size=-3
                 estimate_ready = -3
                 audience_size = -3
