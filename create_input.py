@@ -179,7 +179,7 @@ mapping = {
         "RE": "Reunion",
         "RO": "Romania",
         "RS": "Serbia",
-        "RU": "Russia",
+        #"RU": "Russia",
         "RW": "Rwanda",
         "SA": "Saudi Arabia",
         #"SB": "Solomon Islands",
@@ -198,7 +198,7 @@ mapping = {
         "SS": "South Sudan",
         #"ST": "Sao Tome and Principe",
         "SV": "El Salvador",
-        "SY": "Syria",
+        #"SY": "Syria",
         #"SX": "Sint Maarten",
         "SZ": "Swaziland",
         #"TC": "Turks and Caicos Islands",
@@ -278,6 +278,8 @@ expats = pd.read_csv("./facebook_behavior_expat_origin.csv", header=0)
 print(expats.head(3))
 
 for behavior in range(0, len(expats["key"])):
+    if expats["origin"][behavior] in ["Expats (Luxembourg)","Expats (Greece)","Expats (Latvia)","Expats (Slovenia)","Expats (Malta)","Expats (Monaco)"]:
+        continue
     input_data_json["behavior"].append(
         {"name": expats["origin"][behavior], "or": [int(expats["key"][behavior])]}
     )
