@@ -79,7 +79,7 @@ print(len(input_data_json["behavior"])*\
 #%%
 # %%
 import json
-with open("input_data_test.json", "w") as outfile:
+with open("dalila_short2.json", "w") as outfile:
     json.dump(input_data_json, outfile)
 # %%
 

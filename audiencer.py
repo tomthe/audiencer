@@ -744,7 +744,7 @@ class AudienceCollector:
             predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?)'''
             values = [str(x) for x in [fk_queries, json.dumps(targeting_spec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,str(ias),collection_id,
-            prediction[:16],prediction_mean,prediction_std,prediction_min, prediction_max]]
+            prediction[:12],prediction_mean,prediction_std,prediction_min, prediction_max]]
             #print("values:", values)
             self.cursor.execute(query_string,values)
         except Exception as e:
