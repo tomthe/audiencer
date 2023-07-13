@@ -32,7 +32,7 @@ class AudienceCollector:
         self.db = sqlite3.connect(self.db_file_name)
         self.cursor = self.db.cursor()
         self.init_db()
-        self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities","interests"]
+        self.categories = ["flexible_spec","geo_locations","behavior","genders","ages_ranges","scholarities","interests"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
 
@@ -349,30 +349,30 @@ class AudienceCollector:
         
 
         if collection_config.get("less_combinations",False)==True:
-            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*catlens[1]*(catlens[2]-1+catlens[3]-1+catlens[4]-1+catlens[5]-1))
-            print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]))
+            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*catlens[1]*(catlens[2]-1+catlens[3]-1+catlens[4]-1+catlens[5]+catlens[6]-1))
+            print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]))
             # start main loop:
             for i0 in range(1, catlens[0]):
                 for i1 in range(catlens[1]):
-                    i2=i3=i4=i5=0
+                    i2=i3=i4=i5=i6=0
                     for i2 in range(catlens[2]):
-                        ias = (i0,i1,i2,i3,i4,i5)
+                        ias = (i0,i1,i2,i3,i4,i5,i6)
                         self.collect_one_combination(ias,collection_config)
                     i2=i3=i4=i5=0
                     for i3 in range(1,catlens[3]):
-                        ias = (i0,i1,i2,i3,i4,i5)
+                        ias = (i0,i1,i2,i3,i4,i5,i6)
                         self.collect_one_combination(ias,collection_config)
                     i2=i3=i4=i5=0
                     for i4 in range(1,catlens[4]):
-                        ias = (i0,i1,i2,i3,i4,i5)
+                        ias = (i0,i1,i2,i3,i4,i5,i6)
                         self.collect_one_combination(ias,collection_config)
                     i2=i3=i4=i5=0
                     for i5 in range(1,catlens[5]):
-                        ias = (i0,i1,i2,i3,i4,i5)
+                        ias = (i0,i1,i2,i3,i4,i5,i6)
                         self.collect_one_combination(ias,collection_config)
         else:
-            print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]))
-            print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]))
+            print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]+catlens[6]))
+            print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]))
             # start main loop:
             for i0 in range(1,catlens[0]):
                 for i1 in range(catlens[1]):
@@ -380,8 +380,9 @@ class AudienceCollector:
                         for i3 in range(catlens[3]):
                             for i4 in range(catlens[4]):
                                 for i5 in range(catlens[5]):
-                                    ias = (i0,i1,i2,i3,i4,i5)
-                                    self.collect_one_combination(ias, collection_config)
+                                    for i6 in range(catlens[6]):
+                                        ias = (i0,i1,i2,i3,i4,i5,i6)
+                                        self.collect_one_combination(ias, collection_config)
         self.finish_collection(collection_id)
         print("collection finished!", len(self.results_mau),datetime.now())
 
@@ -567,6 +568,13 @@ class AudienceCollector:
                             if not education_statuses_is_in_flexible_spec:
                                 # "education_statuses" is not there. Add it:
                                 newspec["flexible_spec"].append({"education_statuses":self.input_data_json[cat][ia-1]["or"]})
+                    elif cat=="flexible_spec":
+                        if cat not in newspec:
+                            # "flexible_spec" is a list of dictionaries
+                            newspec[cat] = [self.input_data_json[cat][ia-1]]
+                        else:
+                            newspec[cat].append(self.input_data_json[cat][ia-1])
+
                     else:
                         if cat not in newspec:
                             newspec[cat]=[self.input_data_json[cat][ia-1]]
