@@ -19,7 +19,7 @@ from ast import literal_eval as make_tuple
 
 class AudienceCollector:
 
-    def __init__(self, db_file_name, token=None,account_number=None,credentials_fn=None,api_version="13.0"):
+    def __init__(self, db_file_name, token=None,account_number=None,credentials_fn=None,api_version="17.0"):
         self.db_file_name = db_file_name
         self.collection_id = -1
         if token != None:
@@ -175,7 +175,7 @@ class AudienceCollector:
         q3 = f"""SELECT * from results where fk_queries = {query_info[0]} ORDER BY pk_results DESC LIMIT 1"""
         self.cursor.execute(q3)
         result_info = self.cursor.fetchone()
-        print(result_info)
+        print("last result: ", result_info)
         q4 = f"""SELECT * from errors where fk_queries = {query_info[0]} ORDER BY pk_errors DESC LIMIT 1"""
         self.cursor.execute(q4)
         error_info = self.cursor.fetchone()
@@ -204,8 +204,9 @@ class AudienceCollector:
         query = f"""SELECT ias, mau from results where collection_id = ? ORDER BY pk_results DESC"""
         self.cursor.execute(query,(collection_id,))
         # loop through already fetched results and add them to self.results_mau:
+        print("restore result")
         for result in self.cursor.fetchall():
-            print("restore result: ", result)
+            #print("restore result: ", result)
             self.results_mau[make_tuple(result[0])] = int(result[1])
         print("results_mau", self.results_mau)
         self.collection_id = collection_id
@@ -304,8 +305,8 @@ class AudienceCollector:
                 self.predictions_median[ias] = -2
                 self.predictions_stdev[ias] = -2
                 self.predictions_len[ias] = len(prediction)
-            print(ias, "prediction_median: ",self.predictions_median[ias])
-            #print(ias, "prediction_median: ",self.predictions_median)
+            if collection_config.get("verbose",False)==True:
+                print(ias, "prediction_median: ",self.predictions_median[ias])
             # 2. sub-1000 handling: skip or  make extra-requests?
             if 1 < self.predictions_median[ias] < 600:
                 if collection_config.get("skip_sub_1000",True)==True:
@@ -436,7 +437,7 @@ class AudienceCollector:
             res_iasp1= self.results_mau.get(tuple(iasp1),-1)
             res_iasp2= self.results_mau.get(tuple(iasp2),-1)
             res_iasp3= self.results_mau.get(tuple(iasp3),-1)
-            if res_iasp1>=0 and res_iasp2>=0 and res_iasp3>=0:
+            if res_iasp1>=1000 and res_iasp2>=1000 and res_iasp3>=1000:
                 #print("get-all-predictions...",res_iasp1,res_iasp2,res_iasp3)
                 predictions.append(res_iasp1*res_iasp2/res_iasp3)
             else:
@@ -548,9 +549,9 @@ class AudienceCollector:
                             newspec["age_max"] = max(newspec["age_max"],self.input_data_json[cat][ia-1]["max"])
                     elif cat=="behavior":
                         if "flexible_spec" not in newspec:
-                            newspec["flexible_spec"] = [{"behaviors":[{"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["or"][0]}]}]
+                            newspec["flexible_spec"] = [{"behaviors":[self.input_data_json[cat][ia-1]]}]#{"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["id"]}]}]#["or"][0]}]}]
                         else:
-                            newspec["flexible_spec"]["behaviors"].append({"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["or"][0]})
+                            newspec["flexible_spec"]["behaviors"].append(self.input_data_json[cat][ia-1])#{"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["id"]})#["or"][0]})
                     elif cat=="scholarities":
                         if "flexible_spec" not in newspec:
                             # "flexible_spec" is a list of dictionaries
@@ -657,7 +658,7 @@ class AudienceCollector:
         #         logging.error(e)
         #         return
 
-
+        print("ts: ", targeting_spec)
         try:
             if responsecontent!="skipped":
                 try:
@@ -678,7 +679,8 @@ class AudienceCollector:
                     audience_size = "-2"
                     #time.sleep(3600)
             elif responsecontent=="skipped":
-                print(ias,"skipped")
+                if self.config.get("verbose",False)==True:
+                    print(ias,"skipped")
                 mau=dau=mau_lower=mau_upper=audience_size=-3
                 estimate_ready = -3
                 audience_size = -3
@@ -742,7 +744,7 @@ class AudienceCollector:
             predictions,prediction_mean,prediction_std,prediction_min, prediction_max) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?)'''
             values = [str(x) for x in [fk_queries, json.dumps(targeting_spec),  str(datetime.now().timestamp()),  responsecontent,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,str(ias),collection_id,
-            prediction,prediction_mean,prediction_std,prediction_min, prediction_max]]
+            prediction[:16],prediction_mean,prediction_std,prediction_min, prediction_max]]
             #print("values:", values)
             self.cursor.execute(query_string,values)
         except Exception as e:
