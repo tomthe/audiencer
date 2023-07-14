@@ -9,18 +9,18 @@ import importlib
 importlib.reload(audiencer)
 #%%
 
-# open json file, load into dict
-with open("dalila_short2.json", "r") as infile:
-    input_data_json = json.load(infile)
+# # open json file, load into dict
+# with open("dalila_short2.json", "r") as infile:
+#     input_data_json = json.load(infile)
 
 options_json={"skip_sub_1000":True,"less_combinations":False}
 # audiencer.
 
-audi = audiencer.AudienceCollector("G:\\theile\\facebook\\audiencer_dali_short_05.sqlite",credentials_fn="credentials2.csv")
+audi = audiencer.AudienceCollector("G:\\theile\\facebook\\audiencer_dali_short_06.sqlite",credentials_fn="credentials2.csv")
 #%%
 audi.check_last_collection()
 #%%
-audi.start_new_collection(fn_input_data="dalila_short2.json", options_json=options_json, collection_name="dalila_short_03", comment="-")
+audi.start_new_collection(fn_input_data="dalila_short3.json", options_json=options_json, collection_name="dalila_short_03_2", comment="-")
 #%%
 
 audi.restart_last_collection()

@@ -1,0 +1,161 @@
+{
+    "name": "worldwide expat collection",
+    "geo_locations": [
+        { "name": "countries", "values": ["BE"], "location_types": ["home"] },
+        { "name": "countries", "values": ["AT"], "location_types": ["home"] },
+        { "name": "countries", "values": ["BG"], "location_types": ["home"] },
+        { "name": "countries", "values": ["CH"], "location_types": ["home"] },
+        // { "name": "countries", "values": ["CY"], "location_types": ["home"] },
+        { "name": "countries", "values": ["CZ"], "location_types": ["home"] },
+        { "name": "countries", "values": ["DK"], "location_types": ["home"] },
+        { "name": "countries", "values": ["EE"], "location_types": ["home"] },
+        { "name": "countries", "values": ["ES"], "location_types": ["home"] },
+        { "name": "countries", "values": ["FR"], "location_types": ["home"] },
+        { "name": "countries", "values": ["GR"], "location_types": ["home"] },
+        { "name": "countries", "values": ["HR"], "location_types": ["home"] },
+        { "name": "countries", "values": ["HU"], "location_types": ["home"] },
+        { "name": "countries", "values": ["IL"], "location_types": ["home"] },
+        { "name": "countries", "values": ["LT"], "location_types": ["home"] },
+        { "name": "countries", "values": ["LU"], "location_types": ["home"] },
+        { "name": "countries", "values": ["NL"], "location_types": ["home"] },
+        { "name": "countries", "values": ["PL"], "location_types": ["home"] },
+        { "name": "countries", "values": ["RO"], "location_types": ["home"] },
+        { "name": "countries", "values": ["SE"], "location_types": ["home"] },
+        { "name": "countries", "values": ["SI"], "location_types": ["home"] },
+        { "name": "countries", "values": ["SK"], "location_types": ["home"] },  
+        {
+            "name": "countries",
+            "values": [
+                "DE"
+            ],
+            "location_types": [
+                "home"
+            ]
+        },
+        {
+            "name": "countries",
+            "values": [
+                "IT"
+            ],
+            "location_types": [
+                "home"
+            ]
+        },
+        {
+            "name": "countries",
+            "values": [
+                "FI"
+            ],
+            "location_types": [
+                "home"
+            ]
+        }
+    ],
+    "genders": [
+        1,
+        2
+    ],
+    "ages_ranges": [
+        {
+            "min": 18,
+            "max": 49
+        },
+        {
+            "min": 50,
+            "max": 64
+        },
+        {
+            "min": 65
+        }
+    ],
+    "behavior": [
+        {
+            "id": "6004382299972",
+            "name": "Facebook access (mobile): all mobile devices"
+        },
+        {
+            "id": "6004384041172",
+            "name": "Facebook access (mobile): Apple (iOS) devices"
+        },
+        {
+            "id": "6004386044572",
+            "name": "Facebook access (mobile): Android devices"
+        }
+    ],
+    "scholarities": [
+        {
+            "name": "Graduated",
+            "or": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+            ]
+        }
+    ],
+    "flexible_spec": [
+        {
+            "relationship_statuses": [
+                "1",
+                "12",
+                "11",
+                "13"
+            ]
+        },
+        {
+            "relationship_statuses": [
+                "3",
+                "2",
+                "4"
+            ]
+        }
+    ],
+    "interests": [
+        {
+            "id": "6002960574320",
+            "name": "Tablet computers (computers & electronics)"
+        },
+        {
+            "id": "6003280676501",
+            "name": "GPS devices (consumer electronics)"
+        },
+        {
+            "id": "6002971085794",
+            "name": "Mobile phones (smart phone)"
+        },
+        {
+            "id": "6003404634364",
+            "name": "Computers (computers & electronics)"
+        },
+        {
+            "id": "6003753105091",
+            "name": "Email (computing)"
+        },
+        {
+            "id": "6003584283289",
+            "name": "WhatsApp (software)"
+        },
+        {
+            "id": "6003466585319",
+            "name": "Online banking (banking)"
+        },
+        {
+            "id": "6003346592981",
+            "name": "Online shopping (retail)"
+        },
+        {
+            "id": "6003070856229",
+            "name": "Games (leisure)"
+        },
+        {
+            "id": "6004100985609",
+            "name": "Friendship (relationships)"
+        }
+    ]
+}

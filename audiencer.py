@@ -4,6 +4,7 @@
 import sqlite3
 import os
 import numpy as np
+import pandas as pd
 import statistics as st
 from datetime import datetime
 import requests
@@ -32,7 +33,7 @@ class AudienceCollector:
         self.db = sqlite3.connect(self.db_file_name)
         self.cursor = self.db.cursor()
         self.init_db()
-        self.categories = ["flexible_spec","geo_locations","behavior","genders","ages_ranges","scholarities","interests"]
+        self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities","interests","flexible_spec"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
 
@@ -765,3 +766,46 @@ class AudienceCollector:
         self.db.commit()
         return mau,returnerror #cursor.lastrowid
 
+    def export_results(self,fn=""):
+        """
+        export results to a csv file
+        """
+        q = f"""SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time, mau,
+genders, geo_locations,age_min,age_max, education_statuses, behaviors,
+mau, dau, mau_lower,mau_upper,targeting_spec,
+json_extract(geo_locations, '$.countries[0]') AS country,
+json_extract(targeting_spec, '$.flexible_spec') AS flex
+
+FROM results"""
+        q2 = f"""SELECT *,
+CASE 
+  WHEN relationship_statuses = '["3","2","4"]' THEN 'single'
+  WHEN relationship_statuses = '["1","12","11","13"]' THEN 'in_partnership'
+  ELSE 'all_relationship'
+END relationship_alias,
+CASE
+  WHEN education_statuses = '[2,3,4,5,6,7,8,9,10,11]' THEN 'at_least_highschool'
+  ELSE 'all_education'
+END education_alias
+FROM (
+SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time, mau,
+--genders, age_min,age_max, --education_statuses, 
+mau, dau, mau_lower,mau_upper,
+json_extract(geo_locations, '$.countries[0]') AS country,
+json_extract(targeting_spec, '$.interests[0].name') AS interests, 
+coalesce(json_extract(targeting_spec, '$.age_min'),"") || "-" || coalesce(json_extract(targeting_spec, '$.age_max'),"") as age_group,
+json_extract(targeting_spec, '$.genders') AS gender,
+CASE 
+  WHEN json_extract(targeting_spec, '$.genders') = '[1]' THEN 'M'
+  WHEN json_extract(targeting_spec, '$.genders') = '[2]' THEN 'F'
+  ELSE 'all'
+END as gender_alias,
+coalesce(json_extract(targeting_spec, '$.flexible_spec[0].relationship_statuses'),"") || coalesce(json_extract(targeting_spec, '$.flexible_spec[1].relationship_statuses'),"") || coalesce(json_extract(targeting_spec, '$.flexible_spec[2].relationship_statuses'),"") as relationship_statuses,
+coalesce(json_extract(targeting_spec, '$.flexible_spec[0].education_statuses'),"") || coalesce(json_extract(targeting_spec, '$.flexible_spec[1].education_statuses'),"")|| coalesce(json_extract(targeting_spec, '$.flexible_spec[2].education_statuses'),"") as education_statuses,
+coalesce(json_extract(targeting_spec, '$.flexible_spec[0].behaviors[0].name'),"") || coalesce(json_extract(targeting_spec, '$.flexible_spec[1].behaviors[0].name'),"")|| coalesce(json_extract(targeting_spec, '$.flexible_spec[2].behaviors[0].name'),"") as behaviors
+FROM results
+)"""
+        df = pd.read_sql_query(q2, self.db)
+        if fn=="":
+            fn = self.db_file_name + str(datetime.now().minute) + ".csv"
+        df.to_csv(fn, index=False)
