@@ -1,0 +1,96 @@
+{
+    "name": "dalila short 3",
+    "geo_locations": [
+        {
+            "name": "countries",
+            "values": [
+                "DE"
+            ],
+            "location_types": [
+                "home"
+            ]
+        },
+        {
+            "name": "countries",
+            "values": [
+                "IT"
+            ],
+            "location_types": [
+                "home"
+            ]
+        },
+        {
+            "name": "countries",
+            "values": [
+                "FI"
+            ],
+            "location_types": [
+                "home"
+            ]
+        }
+    ],
+    "genders": [
+        1,
+        2
+    ],
+    "ages_ranges": [
+        {
+            "min": 18,
+            "max": 49
+        },
+        {
+            "min": 50,
+            "max": 64
+        },
+        {
+            "min": 65
+        }
+    ],
+    "flexible_spec": [
+        {
+            "relationship_statuses": [
+                "1",
+                "12",
+                "11",
+                "13"
+            ]
+        },
+        {
+            "relationship_statuses": [
+                "3",
+                "2",
+                "4"
+            ]
+        }
+    ],
+    "interests": [
+        {
+            "id": "6003404634364",
+            "name": "Computers (computers & electronics)"
+        },
+        {
+            "id": "6003753105091",
+            "name": "Email (computing)"
+        },
+        {
+            "id": "6003584283289",
+            "name": "WhatsApp (software)"
+        },
+        {
+            "id": "6003466585319",
+            "name": "Online banking (banking)"
+        },
+        {
+            "id": "6003346592981",
+            "name": "Online shopping (retail)"
+        },
+        {
+            "id": "6003070856229",
+            "name": "Games (leisure)"
+        },
+        {
+            "id": "6004100985609",
+            "name": "Friendship (relationships)"
+        }
+    ]
+}

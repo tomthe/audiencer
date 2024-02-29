@@ -5,7 +5,6 @@
         { "name": "countries", "values": ["AT"], "location_types": ["home"] },
         { "name": "countries", "values": ["BG"], "location_types": ["home"] },
         { "name": "countries", "values": ["CH"], "location_types": ["home"] },
-        // { "name": "countries", "values": ["CY"], "location_types": ["home"] },
         { "name": "countries", "values": ["CZ"], "location_types": ["home"] },
         { "name": "countries", "values": ["DK"], "location_types": ["home"] },
         { "name": "countries", "values": ["EE"], "location_types": ["home"] },
@@ -97,6 +96,26 @@
                 10,
                 11
             ]
+        },
+        {
+            "name": "higherTCollege",
+            "or": [
+                3,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+            ]
+        },
+        {
+            "name": "lowerTCollege",
+            "or": [1, 2, 4, 5]
+        },
+        {
+            "name": "noHighschool",
+            "or": [1]
         }
     ],
     "flexible_spec": [
@@ -156,6 +175,22 @@
         {
             "id": "6004100985609",
             "name": "Friendship (relationships)"
+        },
+        {
+            "id": "6003670602220",
+            "name": "Instagram (social media)"
+        },
+        {
+            "id": "6004043913548",
+            "name": "Newspapers (publications)"
+        },
+        {
+            "id": "6002921098355",
+            "name": "Internet access (computers & electronics)"
+        },
+        {
+            "id": "6003464102003",
+            "name": "Twitter (social media)"
         }
     ]
 }

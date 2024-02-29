@@ -15,7 +15,16 @@ import logging
 # https://stackoverflow.com/questions/9763116/parse-a-tuple-from-a-string
 from ast import literal_eval as make_tuple
 
-
+# configure logging to file, and log everything:
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(r"g:\theile\facebook\logs\audiencer_info2.log"),
+        #logging.StreamHandler()
+    ]
+)
+logging.info("Started logging")
 
 
 class AudienceCollector:
@@ -33,7 +42,7 @@ class AudienceCollector:
         self.db = sqlite3.connect(self.db_file_name)
         self.cursor = self.db.cursor()
         self.init_db()
-        self.categories = ["geo_locations","behavior","genders","ages_ranges","scholarities","interests","flexible_spec"]
+        self.categories = ["scholarities","geo_locations","ages_ranges","genders","behavior","interests","flexible_spec"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
 
@@ -50,6 +59,40 @@ class AudienceCollector:
             self.input_data_json =json.load(inputjson)
         
         
+    def fill_results_mau_from_db(self):
+        """
+        fills the results_mau dict from the db
+        """
+
+        q1 = f"""SELECT collection_id from collections 
+                ORDER BY collection_id DESC LIMIT 1"""
+        self.cursor.execute(q1)
+        self.collection_id = self.cursor.fetchone()[0]
+        print("collection_id: ", self.collection_id)
+        query = f"""SELECT ias,mau from results where collection_id = ?"""
+        self.cursor.execute(query,(self.collection_id,))
+        for result in self.cursor.fetchall():
+            self.results_mau[make_tuple(result[0])] = int(result[1])
+        # return self.results_mau
+    
+    def fill_results_mau_from_db_test(self):
+        """
+        fills the results_mau dict from the db
+        """
+        q1 = f"""SELECT collection_id from collections 
+                ORDER BY collection_id DESC LIMIT 1"""
+        self.cursor.execute(q1)
+        self.collection_id = self.cursor.fetchone()[0]
+        print("collection_id: ", self.collection_id)
+        query = f"""SELECT ias,mau from results where collection_id = ? LIMIT 5"""
+        self.cursor.execute(query,(self.collection_id,))
+        print(f"collection_id: {self.collection_id}")
+        for result in self.cursor.fetchall():
+            print(result)
+            print(make_tuple(result[0]))
+            print(result[1])
+            self.results_mau[make_tuple(result[0])] = int(result[1])
+        # return self.results_mau
 
     def init_db(self):
         """
@@ -209,7 +252,7 @@ class AudienceCollector:
         for result in self.cursor.fetchall():
             #print("restore result: ", result)
             self.results_mau[make_tuple(result[0])] = int(result[1])
-        print("results_mau", self.results_mau)
+        # print("results_mau", self.results_mau)
         self.collection_id = collection_id
         self.start_collection(collection_config=self.config, collection_id = self.collection_id,)
 
@@ -220,14 +263,15 @@ class AudienceCollector:
         q1 = f"""SELECT collection_id from collections 
                 ORDER BY collection_id DESC LIMIT 1"""
         self.cursor.execute(q1)
-        collection_id = self.cursor.fetchone()[0]
-        self.restart_collection(collection_id)
+        self.collection_id = self.cursor.fetchone()[0]
+        self.restart_collection(self.collection_id)
 
 
     def start_new_collection(self,fn_input_data, options_json, collection_name="default_collection", comment=""):
         '''save collection-metadata to collections-column
         then start collection with starting-point=0
         '''
+        self.config = options_json
         if fn_input_data != None:
             self.read_input_data_json(fn_input_data)
         else:
@@ -312,7 +356,7 @@ class AudienceCollector:
             if 1 < self.predictions_median[ias] < 600:
                 if collection_config.get("skip_sub_1000",True)==True:
                     # save prediction but skip the request
-                    self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True)
+                    self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True,collection_id=self.collection_id)
                     # todo: save to table
                     audience = self.predictions_median[ias]
                     #continue
@@ -328,11 +372,11 @@ class AudienceCollector:
             #print("---", ias, audience,"pred:",prediction,"|||")
         except Exception as e:
             try:
-                print("collect_one_combination: ",str(e))
-                print("collect_one_combination: ",ias)
-                print("collect_one_combination: ",self.create_targeting_spec_from_ias(ias))
+                logging.error(f"a collect_one_combination: {str(e)}")
+                logging.error(f"b collect_one_combination: {str(ias)}")
+                logging.error(f"c collect_one_combination: {self.create_targeting_spec_from_ias(ias)}")
             except Exception as e2:
-                print("collect_one_combination e2: ",str(e2))
+                logging.error(f"d collect_one_combination e2: {str(e2)}")
    
 
 
@@ -350,32 +394,38 @@ class AudienceCollector:
         
 
         if collection_config.get("less_combinations",False)==True:
-            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*catlens[1]*(catlens[2]-1+catlens[3]-1+catlens[4]-1+catlens[5]+catlens[6]-1))
+            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*(catlens[1]-1)*catlens[2]*catlens[3]*(catlens[4]+catlens[5]+catlens[6]))
             print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]))
             # start main loop:
-            for i0 in range(1, catlens[0]):
-                for i1 in range(catlens[1]):
-                    i2=i3=i4=i5=i6=0
-                    for i2 in range(catlens[2]):
-                        ias = (i0,i1,i2,i3,i4,i5,i6)
-                        self.collect_one_combination(ias,collection_config)
-                    i2=i3=i4=i5=0
-                    for i3 in range(1,catlens[3]):
-                        ias = (i0,i1,i2,i3,i4,i5,i6)
-                        self.collect_one_combination(ias,collection_config)
-                    i2=i3=i4=i5=0
-                    for i4 in range(1,catlens[4]):
-                        ias = (i0,i1,i2,i3,i4,i5,i6)
-                        self.collect_one_combination(ias,collection_config)
-                    i2=i3=i4=i5=0
-                    for i5 in range(1,catlens[5]):
-                        ias = (i0,i1,i2,i3,i4,i5,i6)
-                        self.collect_one_combination(ias,collection_config)
+# self.categories = ["scholarities","geo_locations","ages_ranges","genders","behavior",
+#   "interests","flexible_spec"]
+
+            for i0 in range(catlens[0]): # edu
+                # export collection:
+                self.export_results(i0=i0)
+                for i1 in range(catlens[1]): # geo
+                    for i2 in range(catlens[2]): # age
+                        for i3 in range(catlens[3]): # gender
+                            i5=i6=0
+                            for i4 in range(catlens[4]): # behavior
+                                ias = (i0,i1,i2,i3,i4,i5,i6)
+                                #print("ias: ", ias, i4, catlens[4])
+                                #logging.info(f"ias: {ias}, {i4}, {catlens[4]}")
+                                self.collect_one_combination(ias,collection_config)
+                            i4=i5=i6=0
+                            for i5 in range(catlens[5]): # interests
+                                ias = (i0,i1,i2,i3,i4,i5,i6)
+                                self.collect_one_combination(ias,collection_config)
+                            i4=i5=i6=0
+                            for i6 in range(catlens[6]): # flexible_spec
+                                ias = (i0,i1,i2,i3,i4,i5,i6)
+                                self.collect_one_combination(ias,collection_config)
         else:
             print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]+catlens[6]))
             print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]))
             # start main loop:
-            for i0 in range(1,catlens[0]):
+            for i0 in range(catlens[0]):
+                self.export_results(i0=i0)
                 for i1 in range(catlens[1]):
                     for i2 in range(catlens[2]):
                         for i3 in range(catlens[3]):
@@ -384,8 +434,10 @@ class AudienceCollector:
                                     for i6 in range(catlens[6]):
                                         ias = (i0,i1,i2,i3,i4,i5,i6)
                                         self.collect_one_combination(ias, collection_config)
+        self.export_results(i0=9999)                                        
         self.finish_collection(collection_id)
         print("collection finished!", len(self.results_mau),datetime.now())
+        logging.info(f"collection finished! {len(self.results_mau)} {datetime.now()}")
 
     # def get_and_save_results(self,ias,prediction,sub1000=True):
     #     """
@@ -457,7 +509,7 @@ class AudienceCollector:
             error_json = json.loads(response.text)
             if error_json["error"]["code"] == constants.API_UNKOWN_ERROR_CODE_1 or error_json["error"][
                 "code"] == constants.API_UNKOWN_ERROR_CODE_2:
-                logging.error(f"{error_json}, {params}, {url}")
+                logging.error(f"{error_json=}, {params=}, {url=}")
                 time.sleep(constants.INITIAL_TRY_SLEEP_TIME * tryNumber)
                 return self.send_request(url, params, ias,targeting_spec, prediction, tryNumber)
             # elif error_json["error"]["code"] == constants.INVALID_PARAMETER_ERROR and "error_subcode" in error_json[
@@ -468,8 +520,9 @@ class AudienceCollector:
             #     print_warning("Invalid Zip Code:" + str(params[constants.TARGETING_SPEC_FIELD]))
             #     return get_fake_response()
             elif error_json["error"]["code"] == 80004 or error_json["error"]["code"] == '80004':
-                print("80004","baba",datetime.now())
-                time.sleep(1800)
+                print("80004, baba", datetime.now())
+                logging.info(f"80004, baba . sleep for 45 minutes. ")
+                time.sleep(60*45)
                 return self.send_request(url, params, ias,targeting_spec, prediction, tryNumber)
             else:
                 logging.error("Could not handle error.")
@@ -480,7 +533,9 @@ class AudienceCollector:
                     logging.error("Error Subcode:" + str(error_json["error"]["error_subcode"]))
                 raise Exception(str(error_json["error"]))
         except Exception as e:
-            logging.error(e)
+            logging.error(f"{e=}")
+            logging.error("Could not handle error.")
+            logging.error(str(response.text))
             raise Exception(str(response.text))
         
     def send_request(self, url, params,ias,targeting_spec, prediction, tryNumber=0):
@@ -490,6 +545,7 @@ class AudienceCollector:
         # todo: more intelligent sleep-management
         if tryNumber >= 20: # self.MAX_NUMBER_TRY:
             print("Maximum Number of Tries reached. Failing.")
+            logging.error("Maximum Number of Tries reached. Failing.")
             raise Exception("Maximum try reached.")
         try:
             response = requests.get(url, params=params, timeout=constants.REQUESTS_TIMEOUT)
@@ -530,8 +586,11 @@ class AudienceCollector:
 
     def create_targeting_spec_from_list_of_ias(self,iaslist):
         newspec = {}# todo: add parts that do not change
+        print("iaslist: ", iaslist, end=f";!")
         for ias in iaslist:
+            print("ias: ", ias, end=f"!?")
             for ia,cat in zip(ias,self.categories):
+                print("ia,cat: ", ia,cat, end="|")
                 if ia!=0:
                     if cat=="geo_locations":
                         if cat not in newspec:
@@ -550,10 +609,15 @@ class AudienceCollector:
                         else:
                             newspec["age_max"] = max(newspec["age_max"],self.input_data_json[cat][ia-1]["max"])
                     elif cat=="behavior":
+                        # error before edits: list indices must be integers or slices, not str
                         if "flexible_spec" not in newspec:
                             newspec["flexible_spec"] = [{"behaviors":[self.input_data_json[cat][ia-1]]}]#{"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["id"]}]}]#["or"][0]}]}]
                         else:
-                            newspec["flexible_spec"]["behaviors"].append(self.input_data_json[cat][ia-1])#{"name":self.input_data_json[cat][ia-1]["name"],"id":self.input_data_json[cat][ia-1]["id"]})#["or"][0]})
+                            # ia can be 1 or 2 or 3
+                            if "behaviors" in newspec["flexible_spec"]:
+                                newspec["flexible_spec"]["behaviors"].append(self.input_data_json[cat][ia-1])
+                            else:
+                                newspec["flexible_spec"].append({"behaviors":[self.input_data_json[cat][ia-1]]})
                     elif cat=="scholarities":
                         if "flexible_spec" not in newspec:
                             # "flexible_spec" is a list of dictionaries
@@ -581,8 +645,11 @@ class AudienceCollector:
                             newspec[cat]=[self.input_data_json[cat][ia-1]]
                         else:
                             newspec[cat].append(self.input_data_json[cat][ia-1])
-                else:
+                else: # ia==0
+                    if cat=="geo_locations":
+                        newspec["geo_locations"] = {"country_groups":["worldwide"],"location_types": ["home","recent"]}
                     pass
+        print("§", end="|end")
         return newspec
 
     # def create_targeting_spec(self, ias):
@@ -604,8 +671,8 @@ class AudienceCollector:
 
 
     def save_error(error_message, more_information):
-        logging.error(error_message)
-        logging.error(more_information)
+        logging.error(str(error_message))
+        logging.error(str(more_information))
 
 
     # def save_result(self, url, params, response, ias, tryNumber):
@@ -667,7 +734,8 @@ class AudienceCollector:
         #         logging.error(e)
         #         return
 
-        print("ts: ", targeting_spec)
+        # print("ts: ", targeting_spec)
+        logging.info(f"{ias=}, ts={targeting_spec}, {responsecontent=}")
         try:
             if responsecontent!="skipped":
                 try:
@@ -678,9 +746,10 @@ class AudienceCollector:
                     mau =audience_size= int((float(mau_lower)+float(mau_upper))/2)
                     dau = str(jsn["data"][0]['estimate_dau'])
                     estimate_ready = str(jsn["data"][0]['estimate_ready'])
-                    print(ias,mau,dau,estimate_ready,datetime.now())
+                    # print(ias,mau,dau,estimate_ready,datetime.now())
+                    logging.info(f"{ias=}, {mau=}, {dau=}, {estimate_ready=}")
                 except Exception as e:
-                    print(ias,"savequeryerror1",str(e),responsecontent,str(datetime.now()))
+                    logging.info(str(ias) + "savequeryerror1" + str(e) + responsecontent)
                     returnerror=1
                     mau = mau_lower=mau_upper="-2"
                     dau = "-2"
@@ -688,8 +757,9 @@ class AudienceCollector:
                     audience_size = "-2"
                     #time.sleep(3600)
             elif responsecontent=="skipped":
-                if self.config.get("verbose",False)==True:
-                    print(ias,"skipped")
+                if True: # self.config.get("verbose",False)==True:
+                    # print(ias,"skipped")
+                    logging.info(f"{ias=}, skipped")
                 mau=dau=mau_lower=mau_upper=audience_size=-3
                 estimate_ready = -3
                 audience_size = -3
@@ -706,6 +776,7 @@ class AudienceCollector:
             except Exception as e:
                 geo_locations =  "notSpecified"
                 print(ias,"saveerror2 - geo_locations", str(e))
+                logging.info(f"{ias=}, {str(e)=}")
             try:
                 education_statuses = "notSpecified"
                 if "flexible_spec" in targeting_spec:
@@ -759,6 +830,7 @@ class AudienceCollector:
         except Exception as e:
             returnerror=2
             print("\n",ias, "Error while saving the query 2 ! ", str(e),str(datetime.now()), "query:",query_string)
+            logging.error(f"{ias=}, {str(e)=}, {query_string=}")
             print()
             self.cursor.execute('INSERT INTO results (query_string, targeting_spec,                qtime,        response) VALUES (?,?,?,?)',
                                                 (str(query_string), json.dumps(targeting_spec),    datetime.now().timestamp(),responsecontent))
@@ -766,7 +838,7 @@ class AudienceCollector:
         self.db.commit()
         return mau,returnerror #cursor.lastrowid
 
-    def export_results(self,fn=""):
+    def export_results(self,fn="",i0=0):
         """
         export results to a csv file
         """
@@ -807,5 +879,8 @@ FROM results
 )"""
         df = pd.read_sql_query(q2, self.db)
         if fn=="":
-            fn = self.db_file_name + str(datetime.now().minute) + ".csv"
+            fn = self.db_file_name + str(datetime.now().minute) + "_" + str(i0) + ".csv"
         df.to_csv(fn, index=False)
+        print("exported to ", fn)
+
+    
