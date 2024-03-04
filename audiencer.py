@@ -42,7 +42,8 @@ class AudienceCollector:
         self.db = sqlite3.connect(self.db_file_name)
         self.cursor = self.db.cursor()
         self.init_db()
-        self.categories = ["scholarities","geo_locations","ages_ranges","genders","behavior","interests","flexible_spec"]
+        self.categories = ["scholarities","geo_locations","ages_ranges","genders",
+                           "behavior","interests","flexible_spec","publisher_platforms"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
 
@@ -353,7 +354,7 @@ class AudienceCollector:
             if collection_config.get("verbose",False)==True:
                 print(ias, "prediction_median: ",self.predictions_median[ias])
             # 2. sub-1000 handling: skip or  make extra-requests?
-            if 1 < self.predictions_median[ias] < 600:
+            if 1 < self.predictions_median[ias] < 300:
                 if collection_config.get("skip_sub_1000",True)==True:
                     # save prediction but skip the request
                     self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True,collection_id=self.collection_id)
@@ -394,8 +395,8 @@ class AudienceCollector:
         
 
         if collection_config.get("less_combinations",False)==True:
-            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*(catlens[1]-1)*catlens[2]*catlens[3]*(catlens[4]+catlens[5]+catlens[6]))
-            print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]))
+            print("less_combinations==True --> not doing all combinations. Only:", catlens[0]*(catlens[1]-1)*catlens[2]*catlens[3]*(catlens[4]+catlens[5]+catlens[6]+catlens[7]))
+            print("less_combinations==True --> not doing all combinations. instead of :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]*catlens[7]))
             # start main loop:
 # self.categories = ["scholarities","geo_locations","ages_ranges","genders","behavior",
 #   "interests","flexible_spec"]
@@ -406,23 +407,26 @@ class AudienceCollector:
                 for i1 in range(catlens[1]): # geo
                     for i2 in range(catlens[2]): # age
                         for i3 in range(catlens[3]): # gender
-                            i5=i6=0
+                            i5=i6=i7=0
                             for i4 in range(catlens[4]): # behavior
-                                ias = (i0,i1,i2,i3,i4,i5,i6)
+                                ias = (i0,i1,i2,i3,i4,i5,i6,i7)
                                 #print("ias: ", ias, i4, catlens[4])
                                 #logging.info(f"ias: {ias}, {i4}, {catlens[4]}")
                                 self.collect_one_combination(ias,collection_config)
-                            i4=i5=i6=0
+                            i4=i5=i6=i7=0
                             for i5 in range(catlens[5]): # interests
-                                ias = (i0,i1,i2,i3,i4,i5,i6)
+                                ias = (i0,i1,i2,i3,i4,i5,i6,i7)
                                 self.collect_one_combination(ias,collection_config)
-                            i4=i5=i6=0
+                            i4=i5=i6=i7=0
                             for i6 in range(catlens[6]): # flexible_spec
-                                ias = (i0,i1,i2,i3,i4,i5,i6)
+                                ias = (i0,i1,i2,i3,i4,i5,i6,i7)
+                                self.collect_one_combination(ias,collection_config)
+                            for i7 in range(catlens[7]): # publisher_platforms
+                                ias = (i0,i1,i2,i3,i4,i5,i6,i7)
                                 self.collect_one_combination(ias,collection_config)
         else:
-            print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]+catlens[6]))
-            print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]))
+            print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]+catlens[6]+catlens[7]))
+            print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]*catlens[7]))
             # start main loop:
             for i0 in range(catlens[0]):
                 self.export_results(i0=i0)
@@ -432,8 +436,9 @@ class AudienceCollector:
                             for i4 in range(catlens[4]):
                                 for i5 in range(catlens[5]):
                                     for i6 in range(catlens[6]):
-                                        ias = (i0,i1,i2,i3,i4,i5,i6)
-                                        self.collect_one_combination(ias, collection_config)
+                                        for i7 in range(catlens[7]):
+                                            ias = (i0,i1,i2,i3,i4,i5,i6,i7)
+                                            self.collect_one_combination(ias, collection_config)
         self.export_results(i0=9999)                                        
         self.finish_collection(collection_id)
         print("collection finished!", len(self.results_mau),datetime.now())
@@ -639,6 +644,12 @@ class AudienceCollector:
                             newspec[cat] = [self.input_data_json[cat][ia-1]]
                         else:
                             newspec[cat].append(self.input_data_json[cat][ia-1])
+                            
+                    elif cat=="publisher_platforms":
+                        if cat not in newspec:
+                            newspec[cat] = self.input_data_json[cat][ia-1]
+                        else:
+                            newspec[cat].extend(self.input_data_json[cat][ia-1])
 
                     else:
                         if cat not in newspec:

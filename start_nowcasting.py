@@ -3,8 +3,6 @@ import audiencer
 import json
 import importlib
 
-
-
 5+5
 #%%
 
@@ -16,17 +14,17 @@ importlib.reload(audiencer)
 # with open("dalila_short2.json", "r") as infile:
 #     input_data_json = json.load(infile)
 
-options_json={"skip_sub_1000":True,"less_combinations":True}
+options_json={"skip_sub_1000":True,"less_combinations":False, "verbose":True}
 # audiencer.
 
-audi = audiencer.AudienceCollector("G:\\theile\\facebook\\audiencer_dali_short_20.sqlite",credentials_fn="credentials2.csv")
+audi = audiencer.AudienceCollector("G:\\theile\\facebook\\audiencer_mignow_short_3.sqlite",credentials_fn="credentials2.csv")
 #%%
-audi.export_results(fn=r"N:\Theile\Facebook\facebook_dalila\results_dalila_short_19_complete.csv")
+audi.export_results(fn=r"N:\Theile\Facebook\facebook_nowcasting\results_nowcast_small_halfway.csv")
 #%%
 audi.check_last_collection()
 
 #%%
-audi.start_new_collection(fn_input_data="dalila_long2.json", options_json=options_json, collection_name="dalila_long-23-11-22_20-test", comment="-o20test")
+audi.start_new_collection(fn_input_data="migration_nowcast_small.json", options_json=options_json, collection_name="mignow_small-24-02-29_test", comment="-o01test")
 #%%
 
 audi.fill_results_mau_from_db_test()
@@ -34,6 +32,35 @@ audi.fill_results_mau_from_db()
 #%%
 
 audi.restart_last_collection()
+
+#%%
+audi.export_results(fn=r"N:\Theile\Facebook\facebook_nowcasting\results_nowcast_small_1.csv")
+#%%
+###################################################
+# middle collection:
+
+importlib.reload(audiencer)
+#%%
+options_json={"skip_sub_1000":True,"less_combinations":False, "verbose":True}
+audi = audiencer.AudienceCollector("G:\\theile\\facebook\\audiencer_mignow_middle_4.sqlite",credentials_fn="credentials2.csv")
+
+audi.start_new_collection(fn_input_data="migration_nowcast_middle.json", options_json=options_json, collection_name="mignow_middle-24-02-29_test", comment="-o04middle")
+
+audi.export_results(fn=r"N:\Theile\Facebook\facebook_nowcasting\results_nowcast_middle_2.csv")
+#%%
+###################################################
+# large collection:
+importlib.reload(audiencer)
+options_json={"skip_sub_1000":True,"less_combinations":False, "verbose":True}
+audi = audiencer.AudienceCollector("G:\\theile\\facebook\\audiencer_mignow_large_3.sqlite",credentials_fn="credentials2.csv")
+
+audi.start_new_collection(fn_input_data="migration_nowcast.json", options_json=options_json, collection_name="mignow_large-24-02-29_test", comment="-o1large")
+
+audi.export_results(fn=r"N:\Theile\Facebook\facebook_nowcasting\results_nowcast_large_1.csv")
+#%%
+
+
+
 
 #%%
 i=0
