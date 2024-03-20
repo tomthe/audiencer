@@ -340,9 +340,9 @@ class AudienceCollector:
                 return
             ias = tuple(ias)
             # 1. make prediction for ias    
-            prediction = self.get_all_predictions(ias)
+            prediction, zero_for_sure = self.get_all_predictions(ias)
             if collection_config.get("verbose",False)==True:
-                print(ias, "prediction: ",prediction)
+                print(ias, "zero_for_sure:", zero_for_sure "prediction: ",prediction)
             if len(prediction)>0:
                 self.predictions_median[ias] = st.median(prediction)
                 self.predictions_stdev[ias] = st.stdev(prediction)
@@ -354,8 +354,8 @@ class AudienceCollector:
             if collection_config.get("verbose",False)==True:
                 print(ias, "prediction_median: ",self.predictions_median[ias])
             # 2. sub-1000 handling: skip or  make extra-requests?
-            if 1 < self.predictions_median[ias] < 300:
-                if collection_config.get("skip_sub_1000",True)==True:
+            if (1 < self.predictions_median[ias] < 300) or zero_for_sure==True:
+                if collection_config.get("skip_sub_1000",True)==True or zero_for_sure==True:
                     # save prediction but skip the request
                     self.extract_and_save_result(ias,targeting_spec=self.create_targeting_spec_from_ias(ias),responsecontent="skipped",prediction=prediction,query_skipped=True,collection_id=self.collection_id)
                     # todo: save to table
@@ -455,6 +455,23 @@ class AudienceCollector:
     #     return audience
 
     def get_all_predictions(self,ias):
+        # before we do the predictions, we look into "parent/super"-results.
+        # If a superset of the categories returns <1000, we can skip the request.
+        # e.g. if an ias with a 0 in the "interests"-category returns <1000, 
+        # we can skip the request for the ias with a 1 in the "interests"-category.
+        # check for every category that is >0, if the ias with a 0 in this category
+        # returns <1000. If so, skip the request.
+        zero_for_sure = False
+        for i in range(len(ias)):
+            if ias[i]!=0:
+                ias2 = ias[:]
+                ias2[i] = 0
+                if ias2 in self.results_mau and self.results_mau[ias2]<1000:
+                    zero_for_sure = True
+                    return [],zero_for_sure
+
+
+
         # 1. generate all variations of ias that can form a prediction
         # 2. get the prediction for each variation
         # 3. profit?!
@@ -466,6 +483,7 @@ class AudienceCollector:
         # and the same in iasp1
         ias = list(ias)
         iasplist = []
+        ip=0
         for i in range(len(ias)):
             if ias[i]!=0:
                 for j in range(0,ias[i]): # or only up to ias[i]-1?
@@ -481,6 +499,9 @@ class AudienceCollector:
                                     iasp3[k] = l
                                     iasp3[i] = j
                                     iasplist.append((iasp1,iasp2,iasp3))
+                                    ip+=1
+                                    if ip>100:
+                                        break
         # I have to somehow remove the duplicates, because iasp1 and iasp2 
         # are interchangeable.
         # return iasplist
@@ -504,7 +525,7 @@ class AudienceCollector:
             #predictions.append(self.results_mau.get(tuple(iasp1),*self.results_mau[tuple(iasp2)]/self.results_mau[tuple(iasp3)])
             #predictions.append(results.item(tuple(iasp1))*results.item(tuple(iasp2))/results.item(tuple(iasp3)))
 
-        return predictions
+        return predictions,zero_for_sure
 
 
 
@@ -525,7 +546,7 @@ class AudienceCollector:
             #     print_warning("Invalid Zip Code:" + str(params[constants.TARGETING_SPEC_FIELD]))
             #     return get_fake_response()
             elif error_json["error"]["code"] == 80004 or error_json["error"]["code"] == '80004':
-                print("80004, baba", datetime.now())
+                print("\n80004, baba", datetime.now())
                 logging.info(f"80004, baba . sleep for 45 minutes. ")
                 time.sleep(60*45)
                 return self.send_request(url, params, ias,targeting_spec, prediction, tryNumber)
