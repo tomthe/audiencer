@@ -34,7 +34,7 @@ CASE
   ELSE 'all_education'
 END education_alias
 FROM (
-SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time, mau,
+SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time,qtime, mau,
 length(predictions) as pred_len,
 --genders, age_min,age_max, --education_statuses, 
 mau, dau, mau_lower,mau_upper,round(prediction_mean) as prediction_mean,
@@ -53,7 +53,7 @@ coalesce(json_extract(targeting_spec, '$.flexible_spec[0].education_statuses'),"
 coalesce(json_extract(targeting_spec, '$.flexible_spec[0].behaviors[0].name'),"") || coalesce(json_extract(targeting_spec, '$.flexible_spec[1].behaviors[0].name'),"")|| coalesce(json_extract(targeting_spec, '$.flexible_spec[2].behaviors[0].name'),"") as behaviors
 FROM results
 )
-order by pred_len"""
+order by qtime"""
 #%%
 consqlite = sqlite3.connect(fn)
 df = pd.read_sql_query(q2, consqlite)
@@ -67,5 +67,5 @@ df.tail()
 dfsmall = df[["mau","mau_lower","mau_upper","gender","age_group","education_alias","interests", "behaviors","country"]]
 #%%
 #%%
-df.to_csv(f"N:\\Theile\\Facebook\\facebook_nowcasting\\audiencer_mignow_{ncollection}.csv")
+df.to_csv(f"N:\\Theile\\Facebook\\facebook_nowcasting\\audiencer_mignow_{ncollection}_2.csv")
 #%%
