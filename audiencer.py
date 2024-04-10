@@ -342,7 +342,7 @@ class AudienceCollector:
             # 1. make prediction for ias    
             prediction, zero_for_sure = self.get_all_predictions(ias)
             if collection_config.get("verbose",False)==True:
-                print(ias, "zero_for_sure:", zero_for_sure "prediction: ",prediction)
+                print(ias, "zero_for_sure:", zero_for_sure, "prediction: ",prediction)
             if len(prediction)>0:
                 self.predictions_median[ias] = st.median(prediction)
                 self.predictions_stdev[ias] = st.stdev(prediction)
@@ -546,8 +546,8 @@ class AudienceCollector:
             #     print_warning("Invalid Zip Code:" + str(params[constants.TARGETING_SPEC_FIELD]))
             #     return get_fake_response()
             elif error_json["error"]["code"] == 80004 or error_json["error"]["code"] == '80004':
-                print("\n80004, baba", datetime.now())
-                logging.info(f"80004, baba . sleep for 45 minutes. ")
+                print("\n80004, baba", datetime.now(), ias)
+                logging.info(f"80004, baba . sleep for 45 minutes. ", ias)
                 time.sleep(60*45)
                 return self.send_request(url, params, ias,targeting_spec, prediction, tryNumber)
             else:
@@ -612,11 +612,11 @@ class AudienceCollector:
 
     def create_targeting_spec_from_list_of_ias(self,iaslist):
         newspec = {}# todo: add parts that do not change
-        print("iaslist: ", iaslist, end=f";!")
+        # print("iaslist: ", iaslist, end=f";!")
         for ias in iaslist:
-            print("ias: ", ias, end=f"!?")
+            # print("ias: ", ias, end=f"!?")
             for ia,cat in zip(ias,self.categories):
-                print("ia,cat: ", ia,cat, end="|")
+                # print("ia,cat: ", ia,cat, end="|")
                 if ia!=0:
                     if cat=="geo_locations":
                         if cat not in newspec:
@@ -681,7 +681,7 @@ class AudienceCollector:
                     if cat=="geo_locations":
                         newspec["geo_locations"] = {"country_groups":["worldwide"],"location_types": ["home","recent"]}
                     pass
-        print("§", end="|end")
+        # print("§", end="|end")
         return newspec
 
     # def create_targeting_spec(self, ias):
@@ -874,14 +874,7 @@ class AudienceCollector:
         """
         export results to a csv file
         """
-        q = f"""SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time, mau,
-genders, geo_locations,age_min,age_max, education_statuses, behaviors,
-mau, dau, mau_lower,mau_upper,targeting_spec,
-json_extract(geo_locations, '$.countries[0]') AS country,
-json_extract(targeting_spec, '$.flexible_spec') AS flex
-
-FROM results"""
-        q2 = f"""SELECT *,
+        q = f"""SELECT *,
 CASE 
   WHEN relationship_statuses = '["3","2","4"]' THEN 'single'
   WHEN relationship_statuses = '["1","12","11","13"]' THEN 'in_partnership'
@@ -892,9 +885,11 @@ CASE
   ELSE 'all_education'
 END education_alias
 FROM (
-SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time, mau,
+SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time,qtime, mau,
+length(predictions) as pred_len,
 --genders, age_min,age_max, --education_statuses, 
-mau, dau, mau_lower,mau_upper,
+mau, dau, mau_lower,mau_upper,round(prediction_mean) as prediction_mean,
+coalesce(REPLACE(REPLACE(REPLACE(json_extract(targeting_spec, '$.publisher_platforms'),'"',''),'[',''),']',''),"all_platforms")as publisher_platforms2,
 json_extract(geo_locations, '$.countries[0]') AS country,
 json_extract(targeting_spec, '$.interests[0].name') AS interests, 
 coalesce(json_extract(targeting_spec, '$.age_min'),"") || "-" || coalesce(json_extract(targeting_spec, '$.age_max'),"") as age_group,
@@ -908,8 +903,9 @@ coalesce(json_extract(targeting_spec, '$.flexible_spec[0].relationship_statuses'
 coalesce(json_extract(targeting_spec, '$.flexible_spec[0].education_statuses'),"") || coalesce(json_extract(targeting_spec, '$.flexible_spec[1].education_statuses'),"")|| coalesce(json_extract(targeting_spec, '$.flexible_spec[2].education_statuses'),"") as education_statuses,
 coalesce(json_extract(targeting_spec, '$.flexible_spec[0].behaviors[0].name'),"") || coalesce(json_extract(targeting_spec, '$.flexible_spec[1].behaviors[0].name'),"")|| coalesce(json_extract(targeting_spec, '$.flexible_spec[2].behaviors[0].name'),"") as behaviors
 FROM results
-)"""
-        df = pd.read_sql_query(q2, self.db)
+)
+order by qtime"""
+        df = pd.read_sql_query(q, self.db)
         if fn=="":
             fn = self.db_file_name + str(datetime.now().minute) + "_" + str(i0) + ".csv"
         df.to_csv(fn, index=False)
