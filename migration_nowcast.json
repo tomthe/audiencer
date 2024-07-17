@@ -34,7 +34,6 @@
     { "name": "countries", "values": ["PT"], "location_types": ["home","recent"] },
     { "name": "countries", "values": ["RO"], "location_types": ["home","recent"] },
     { "name": "countries", "values": ["RS"], "location_types": ["home","recent"] },
-    { "name": "countries", "values": ["RU"], "location_types": ["home","recent"] },
     { "name": "countries", "values": ["SE"], "location_types": ["home","recent"] },
     { "name": "countries", "values": ["SI"], "location_types": ["home","recent"] },
     { "name": "countries", "values": ["SK"], "location_types": ["home","recent"] },
