@@ -29,9 +29,10 @@ logging.info("Started logging")
 
 class AudienceCollector:
 
-    def __init__(self, db_file_name, token=None,account_number=None,credentials_fn=None,api_version="17.0"):
+    def __init__(self, db_file_name, token=None,account_number=None,credentials_fn=None,api_version="22.0"):
         self.db_file_name = db_file_name
         self.collection_id = -1
+        self.iglobal = 0
         if token != None:
             self.token = token
             self.account_number = account_number
@@ -72,8 +73,12 @@ class AudienceCollector:
         print("collection_id: ", self.collection_id)
         query = f"""SELECT ias,mau from results where collection_id = ?"""
         self.cursor.execute(query,(self.collection_id,))
+        i = 0
         for result in self.cursor.fetchall():
             self.results_mau[make_tuple(result[0])] = int(result[1])
+            if i < 10 or i % 100 == 0:
+                print(i, result[0],make_tuple(result[0]), result[1])
+            i += 1
         # return self.results_mau
     
     def fill_results_mau_from_db_test(self):
@@ -216,19 +221,27 @@ class AudienceCollector:
         q2 = f"""SELECT * from queries where collection_id = {collection_id} ORDER BY pk_queries DESC LIMIT 1"""
         self.cursor.execute(q2)
         query_info = self.cursor.fetchone()
-        print(query_info)
-        q3 = f"""SELECT * from results where fk_queries = {query_info[0]} ORDER BY pk_results DESC LIMIT 1"""
+        print("query_info: ", query_info)
+        print(f"fk_queries = {query_info[0]-1} ")
+        q3 = f"""SELECT * from results where fk_queries = {query_info[0]-1} ORDER BY pk_results DESC LIMIT 1"""
         self.cursor.execute(q3)
+        result_info = self.cursor.fetchone()
+        print("last result: ", result_info)
+        q31 = f"""SELECT * from results ORDER BY pk_results DESC LIMIT 2"""
+        self.cursor.execute(q31)
         result_info = self.cursor.fetchone()
         print("last result: ", result_info)
         q4 = f"""SELECT * from errors where fk_queries = {query_info[0]} ORDER BY pk_errors DESC LIMIT 1"""
         self.cursor.execute(q4)
         error_info = self.cursor.fetchone()
         print(error_info)
-        q5 = f"""SELECT * from todo_later where fk_results = {result_info[0]} ORDER BY pk_todo_later DESC LIMIT 1"""
-        self.cursor.execute(q5)
-        todo_later_info = self.cursor.fetchone()
-        print(todo_later_info)
+        try:
+            q5 = f"""SELECT * from todo_later where fk_results = {result_info[0]} ORDER BY pk_todo_later DESC LIMIT 1"""
+            self.cursor.execute(q5)
+            todo_later_info = self.cursor.fetchone()
+            print(todo_later_info)
+        except Exception as e:
+            print("no todo_later", str(e))
 
         
     def restart_collection(self, collection_id=2):
@@ -246,14 +259,19 @@ class AudienceCollector:
         self.config = json.loads(collection_info[1])
 
         # get the last query_id
-        query = f"""SELECT ias, mau from results where collection_id = ? ORDER BY pk_results DESC"""
-        self.cursor.execute(query,(collection_id,))
+        query = f"""SELECT ias, mau from results where collection_id = {collection_id} ORDER BY pk_results"""
+        print("qquery: ", query)
+        
+        self.cursor.execute(query)#,(self.collection_id,))
+
+        # query = f"""SELECT ias,mau from results where collection_id = ?"""
+        # self.cursor.execute(query,(self.collection_id,))
         # loop through already fetched results and add them to self.results_mau:
-        print("restore result")
+        print("restore result. len(self.results_mau): ", len(self.results_mau))
         for result in self.cursor.fetchall():
             #print("restore result: ", result)
             self.results_mau[make_tuple(result[0])] = int(result[1])
-        # print("results_mau", self.results_mau)
+        print("results_mau restored")
         self.collection_id = collection_id
         self.start_collection(collection_config=self.config, collection_id = self.collection_id,)
 
@@ -265,6 +283,8 @@ class AudienceCollector:
                 ORDER BY collection_id DESC LIMIT 1"""
         self.cursor.execute(q1)
         self.collection_id = self.cursor.fetchone()[0]
+        print("last collection_id: ", self.collection_id)
+        print("restarting collection now")
         self.restart_collection(self.collection_id)
 
 
@@ -337,9 +357,10 @@ class AudienceCollector:
         try:
             if ias in self.results_mau:
                 # skip, if result already exists from previous run:
+                # print("skip, if result already exists from previous run:",ias, len(self.results_mau))
                 return
             ias = tuple(ias)
-            # 1. make prediction for ias    
+            # 1. make prediction for ias  
             prediction, zero_for_sure = self.get_all_predictions(ias)
             if collection_config.get("verbose",False)==True:
                 print(ias, "zero_for_sure:", zero_for_sure, "prediction: ",prediction)
@@ -373,6 +394,7 @@ class AudienceCollector:
             #print("---", ias, audience,"pred:",prediction,"|||")
         except Exception as e:
             try:
+                print("error in collect_one_combination: ",str(e))
                 logging.error(f"a collect_one_combination: {str(e)}")
                 logging.error(f"b collect_one_combination: {str(ias)}")
                 logging.error(f"c collect_one_combination: {self.create_targeting_spec_from_ias(ias)}")
@@ -428,6 +450,7 @@ class AudienceCollector:
             print("less_combinations==False --> doing all combinations. not only:", catlens[0]*catlens[1]*(catlens[2]+catlens[3]+catlens[4]+catlens[5]+catlens[6]+catlens[7]))
             print("less_combinations==False --> doing all combinations. but do :", catlens[0]*catlens[1]*(catlens[2]*catlens[3]*catlens[4]*catlens[5]*catlens[6]*catlens[7]))
             # start main loop:
+            print("catlens: ", catlens)
             for i0 in range(catlens[0]):
                 self.export_results(i0=i0)
                 for i1 in range(catlens[1]):
@@ -438,6 +461,7 @@ class AudienceCollector:
                                     for i6 in range(catlens[6]):
                                         for i7 in range(catlens[7]):
                                             ias = (i0,i1,i2,i3,i4,i5,i6,i7)
+                                            # print(ias, datetime.now())
                                             self.collect_one_combination(ias, collection_config)
         self.export_results(i0=9999)                                        
         self.finish_collection(collection_id)
@@ -464,13 +488,11 @@ class AudienceCollector:
         zero_for_sure = False
         for i in range(len(ias)):
             if ias[i]!=0:
-                ias2 = ias[:]
+                ias2 = list(ias[:])
                 ias2[i] = 0
-                if ias2 in self.results_mau and self.results_mau[ias2]<1000:
+                if tuple(ias2) in self.results_mau and self.results_mau[tuple(ias2)]<1000:
                     zero_for_sure = True
                     return [],zero_for_sure
-
-
 
         # 1. generate all variations of ias that can form a prediction
         # 2. get the prediction for each variation
@@ -546,10 +568,15 @@ class AudienceCollector:
             #     print_warning("Invalid Zip Code:" + str(params[constants.TARGETING_SPEC_FIELD]))
             #     return get_fake_response()
             elif error_json["error"]["code"] == 80004 or error_json["error"]["code"] == '80004':
-                print("\n80004, baba", datetime.now(), ias)
-                logging.info(f"80004, baba . sleep for 45 minutes. ", ias)
+                print("\n80004, baba", datetime.now(), ias, self.iglobal)
+                logging.info(f"80004, baba . sleep for 45 minutes. {str(ias)}")
                 time.sleep(60*45)
                 return self.send_request(url, params, ias,targeting_spec, prediction, tryNumber)
+            elif error_json["error"]["code"] == 2641:
+                print("\nlocations that are currently restricted...", datetime.now(), ias, self.iglobal)
+                logging.info(f"locations that are currently restricted... {str(ias)}")
+                # time.sleep(60*45)
+                return 0
             else:
                 logging.error("Could not handle error.")
                 logging.error("Error Code:" + str(error_json["error"]["code"]))
@@ -569,7 +596,7 @@ class AudienceCollector:
         tryNumber += 1
         time.sleep(3)
         # todo: more intelligent sleep-management
-        if tryNumber >= 20: # self.MAX_NUMBER_TRY:
+        if tryNumber >= 5: # self.MAX_NUMBER_TRY:
             print("Maximum Number of Tries reached. Failing.")
             logging.error("Maximum Number of Tries reached. Failing.")
             raise Exception("Maximum try reached.")
@@ -849,7 +876,12 @@ class AudienceCollector:
                 prediction_max= -2
             if mau > 0:
                 self.results_mau[tuple(ias)] = mau
-
+            try:
+                if self.iglobal % 100 == 0:
+                    print(self.iglobal,ias, datetime.now(), mau, dau,genders,geo_locations,age_min,age_max,education_statuses)
+            except Exception as e:
+                print("error in print(ias, datetime.now(),", str(e))
+            self.iglobal += 1
             #print(ias,mau,dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,irun)
             query_string = '''INSERT INTO results (fk_queries,  targeting_spec,   qtime,      response,mau,mau_lower,mau_upper,
             dau,audience_size,estimate_ready,genders,geo_locations,age_min,age_max,education_statuses,behaviors,ias,collection_id,
@@ -882,6 +914,14 @@ CASE
 END relationship_alias,
 CASE
   WHEN education_statuses = '[2,3,4,5,6,7,8,9,10,11]' THEN 'at_least_highschool'
+  WHEN education_statuses = '[3, 7, 8, 9, 11]' THEN 'Graduated'
+  WHEN education_statuses = '[12]' THEN 'Unspecified'
+  WHEN education_statuses = '[1,13]' THEN 'Primary Education or less'
+  WHEN education_statuses = '[2, 4, 5]' THEN 'Secondary education'
+  WHEN education_statuses = '[6,10]' THEN 'Post-secondary education'
+  WHEN education_statuses = '[3]' THEN 'Bachelor'
+  WHEN education_statuses = '[9,7]' THEN 'Master'
+  WHEN education_statuses = '[11]' THEN 'Doctorate'
   ELSE 'all_education'
 END education_alias
 FROM (

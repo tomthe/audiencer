@@ -1,0 +1,61 @@
+{
+  "name": "europe migration survey Jan25",
+  "geo_locations": [
+    { "name": "countries", "values": ["DE"], "location_types": ["home","recent"] },
+    { "name": "countries", "values": ["GB"], "location_types": ["home","recent"] },
+    { "name": "countries", "values": ["PL"], "location_types": ["home","recent"] }
+  ],
+  "genders": [1, 2],
+  "ages_ranges": [
+    { "min": 13, "max": 19 },
+    { "min": 20, "max": 24 },
+    { "min": 25, "max": 29 },
+    { "min": 30, "max": 34 },
+    { "min": 35, "max": 39 },
+    { "min": 40, "max": 44 },
+    { "min": 45, "max": 49 },
+    { "min": 50, "max": 54 },
+    { "min": 55, "max": 59 },
+    { "min": 60, "max": 64 },
+    { "min": 65}
+  ],
+  "behavior": [
+    { "name": "Lives abroad", "id": "6015559470583" },
+    { "name": "Lived in Germany (Formerly Expats - Germany)", "id": "6019367052983" },
+    { "name": "Lived in Poland (Formerly Expats - Poland)", "id": "6019396657183" },
+    { "name": "Lived in United Kingdom (Formerly Expats - United Kingdom)", "id": "6021354152983" }
+  ],
+  "publisher_platforms":[
+    ["facebook"],
+    ["instagram"]
+  ],
+
+	"scholarities": [{
+			"name": "Graduated",
+			"or": [3, 7, 8, 9, 11]
+		},
+		{
+			"name": "Unspecified",
+			"or": [12]
+		},
+		{
+			"name": "Primary Education or less",
+			"or": [1, 13]
+		}, {
+			"name": "Secondary education ",
+			"or": [2, 4, 5]
+		}, {
+			"name": "Post-secondary education ",
+			"or": [6,10]
+		}, {
+			"name": "Bachelor",
+			"or": [3]
+		}, {
+			"name": "Master",
+			"or": [9,7]
+		}, {
+			"name": "Doctorate",
+			"or": [11]
+		}
+	]
+}

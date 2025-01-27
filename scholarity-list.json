@@ -1,0 +1,34 @@
+, {
+    "name": "Doctorate",
+    "or": [11]
+},{
+    "name": "High School Grad",
+    "or": [4]
+},{
+    "name": "Some High School",
+    "or": [13]
+},{
+    "name": "Some Grad School",
+    "or": [8]
+},{
+    "name": "Some Collage",
+    "or": [5]
+},{
+    "name": "Professional degree",
+    "or": [10]
+},{
+    "name": "Master's degree",
+    "or": [9]
+},{
+    "name": "In high school",
+    "or": [1]
+},{
+    "name": "In Grad School",
+    "or": [7]
+},{
+    "name": "In College",
+    "or": [2]
+},{
+    "name": "Associate Degree",
+    "or": [6]
+}
