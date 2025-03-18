@@ -58,5 +58,10 @@
 			"name": "Doctorate",
 			"or": [11]
 		}
-	]
+  ],
+  "locales": [
+    [15], //polish
+    [5], //german
+    [1001] //english(all)
+  ]
 }

@@ -44,7 +44,8 @@ class AudienceCollector:
         self.cursor = self.db.cursor()
         self.init_db()
         self.categories = ["scholarities","geo_locations","ages_ranges","genders",
-                           "behavior","interests","flexible_spec","publisher_platforms"]
+                           "behavior","interests","flexible_spec","publisher_platforms",
+                           "locales"]
                 
         constants.REACHESTIMATE_URL = "https://graph.facebook.com/v" + api_version + "/act_{}/delivery_estimate"
 
@@ -429,7 +430,7 @@ class AudienceCollector:
                 for i1 in range(catlens[1]): # geo
                     for i2 in range(catlens[2]): # age
                         for i3 in range(catlens[3]): # gender
-                            i5=i6=i7=0
+                            i5=i6=i7=i8=0
                             for i4 in range(catlens[4]): # behavior
                                 ias = (i0,i1,i2,i3,i4,i5,i6,i7)
                                 #print("ias: ", ias, i4, catlens[4])
@@ -460,9 +461,10 @@ class AudienceCollector:
                                 for i5 in range(catlens[5]):
                                     for i6 in range(catlens[6]):
                                         for i7 in range(catlens[7]):
-                                            ias = (i0,i1,i2,i3,i4,i5,i6,i7)
-                                            # print(ias, datetime.now())
-                                            self.collect_one_combination(ias, collection_config)
+                                            for i8 in range(catlens[8]):
+                                                ias = (i0,i1,i2,i3,i4,i5,i6,i7,i8)
+                                                # print(ias, datetime.now())
+                                                self.collect_one_combination(ias, collection_config)
         self.export_results(i0=9999)                                        
         self.finish_collection(collection_id)
         print("collection finished!", len(self.results_mau),datetime.now())
@@ -694,6 +696,11 @@ class AudienceCollector:
                             newspec[cat].append(self.input_data_json[cat][ia-1])
                             
                     elif cat=="publisher_platforms":
+                        if cat not in newspec:
+                            newspec[cat] = self.input_data_json[cat][ia-1]
+                        else:
+                            newspec[cat].extend(self.input_data_json[cat][ia-1])
+                    elif cat=="locales":
                         if cat not in newspec:
                             newspec[cat] = self.input_data_json[cat][ia-1]
                         else:
