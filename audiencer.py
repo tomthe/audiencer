@@ -913,19 +913,20 @@ CASE
   ELSE 'all_relationship'
 END relationship_alias,
 CASE
-  WHEN education_statuses = '[2,3,4,5,6,7,8,9,10,11]' THEN 'at_least_highschool'
+  WHEN education_statuses = '[2, 3, 4, 5, 6, 7, 8, 9, 10, 11]' THEN 'at_least_highschool'
   WHEN education_statuses = '[3, 7, 8, 9, 11]' THEN 'Graduated'
   WHEN education_statuses = '[12]' THEN 'Unspecified'
-  WHEN education_statuses = '[1,13]' THEN 'Primary Education or less'
+  WHEN education_statuses = '[1, 13]' THEN 'Primary Education or less'
   WHEN education_statuses = '[2, 4, 5]' THEN 'Secondary education'
-  WHEN education_statuses = '[6,10]' THEN 'Post-secondary education'
+  WHEN education_statuses = '[6, 10]' THEN 'Post-secondary education'
   WHEN education_statuses = '[3]' THEN 'Bachelor'
-  WHEN education_statuses = '[9,7]' THEN 'Master'
+  WHEN education_statuses = '[9, 7]' THEN 'Master'
   WHEN education_statuses = '[11]' THEN 'Doctorate'
+  WHEN education_statuses = 'notSpecified' THEN 'notSpecified'
   ELSE 'all_education'
 END education_alias
 FROM (
-SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time,qtime, mau,
+SELECT pk_results,ias,datetime(qtime,"unixepoch") as query_time,qtime, mau, dau, education_statuses,
 length(predictions) as pred_len,
 --genders, age_min,age_max, --education_statuses, 
 mau, dau, mau_lower,mau_upper,round(prediction_mean) as prediction_mean,
